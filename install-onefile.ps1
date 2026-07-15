@@ -8,8 +8,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $discordWasRunning = [bool](Get-Process -Name Discord -ErrorAction SilentlyContinue)
+Write-Host '[1/3] Fechando o Discord...'
 if ($discordWasRunning) {
-    Write-Host 'Fechando o Discord...'
     1..25 | ForEach-Object {
         Get-Process -Name Discord -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
@@ -25,6 +25,7 @@ $payloadJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payl
 $payload = $payloadJson | ConvertFrom-Json
 $utf8NoBom = New-Object Text.UTF8Encoding($false)
 
+Write-Host '[2/3] Instalando o patch...'
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 foreach ($property in $payload.PSObject.Properties) {
     $destination = Join-Path $InstallRoot $property.Name
@@ -36,7 +37,8 @@ $apps = @(Get-HarborDiscordApps -DiscordRoot $DiscordRoot)
 if ($apps.Count -eq 0) { throw "Nenhuma instalacao do Discord encontrada em $DiscordRoot" }
 
 $patcher = Join-Path $InstallRoot 'patcher.js'
-if (-not (Install-HarborPatchIntoApp -AppDir $apps[0].FullName -PatcherPath $patcher)) {
+$installed = Install-HarborPatchIntoApp -AppDir $apps[0].FullName -PatcherPath $patcher 6>$null
+if (-not $installed) {
     throw 'Nao foi possivel instalar na versao mais recente do Discord. Veja os avisos acima.'
 }
 
@@ -46,13 +48,10 @@ $runCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hi
 New-Item -Path $runKey -Force | Out-Null
 Set-ItemProperty -Path $runKey -Name 'HarborFullscreenPatchRepair' -Value $runCommand
 
-Write-Host ''
-Write-Host 'Harbor Fullscreen Patch instalado com sucesso.' -ForegroundColor Green
-Write-Host 'Abra o Discord e teste o fullscreen na Activity do Harbor.'
-Write-Host "Desinstalador: $InstallRoot\uninstall.ps1"
-
 $discordExe = Join-Path $apps[0].FullName 'Discord.exe'
 if (Test-Path -LiteralPath $discordExe -PathType Leaf) {
-    Write-Host 'Abrindo o Discord...'
-    Start-Process -FilePath $discordExe
+    Write-Host '[3/3] Abrindo o Discord...'
+    Start-Process -FilePath $discordExe -RedirectStandardOutput 'NUL' -RedirectStandardError '\\.\NUL'
 }
+
+Write-Host 'Concluido. Voce ja pode fechar este terminal.' -ForegroundColor Green
