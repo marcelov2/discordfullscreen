@@ -1,4 +1,4 @@
-# Harbor Fullscreen Patch
+# TRANSPORTE Fullscreen Patch
 
 Patch independente para permitir que uma Discord Activity use tela cheia real no Discord Desktop.
 
