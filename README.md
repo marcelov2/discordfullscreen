@@ -15,3 +15,13 @@ iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/refs/he
 O instalador fecha o Discord, instala o patch, abre o Discord novamente e encerra o terminal automaticamente.
 
 Depois, entre na Activity do Harbor e use o botão de tela cheia do player.
+
+## Desinstalação
+
+Feche o Discord e execute no PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:APPDATA\HarborFullscreenPatch\uninstall.ps1"
+```
+
+Depois da desinstalação, abra o Discord normalmente.
