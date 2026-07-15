@@ -54,4 +54,6 @@ if (Test-Path -LiteralPath $discordExe -PathType Leaf) {
     Start-Process -FilePath $discordExe -RedirectStandardOutput 'NUL' -RedirectStandardError '\\.\NUL'
 }
 
-Write-Host 'Concluido. Voce ja pode fechar este terminal.' -ForegroundColor Green
+Write-Host 'Finalizado.' -ForegroundColor Green
+Start-Sleep -Milliseconds 800
+exit 0
