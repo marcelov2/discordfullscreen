@@ -97,7 +97,12 @@ function openRemoteSession(request, sourceContents) {
   remoteSessions.set(session, { window: win, sourceContents });
   win.webContents.on("console-message", (_event, ...args) => {
     const result = decodeBridgePayload(consoleText(args), RESULT_PREFIX);
-    if (result?.session === session) broadcastToActivity(session, result.data);
+    if (result?.session === session) {
+      const state = result.data?.state || result.data?.type || "message";
+      const message = result.data?.message ? ` ${result.data.message}` : "";
+      log(`bridge:result ${session} ${state}${message}`);
+      broadcastToActivity(session, result.data);
+    }
   });
   win.webContents.on("did-finish-load", () => broadcastToActivity(session, { type: "opened" }));
   win.webContents.on("before-input-event", (event, input) => {
@@ -106,6 +111,7 @@ function openRemoteSession(request, sourceContents) {
   win.on("closed", () => {
     if (remoteSessions.get(session)?.window === win) {
       remoteSessions.delete(session);
+      log(`bridge:closed ${session}`);
       broadcastToActivity(session, { type: "closed" });
     }
   });
