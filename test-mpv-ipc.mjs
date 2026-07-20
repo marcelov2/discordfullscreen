@@ -10,9 +10,9 @@ if (!mpv) throw new Error("mpv.exe não encontrado");
 
 const pipe = `\\\\.\\pipe\\harbor-mpv-test-${process.pid}-${Date.now()}`;
 const child = spawn(mpv, [
-  "--no-config", "--idle=yes", "--vo=null", "--ao=null",
+  "--no-config", "--idle=yes", "--force-window=no", "--vid=no", "--ao=null",
   `--input-ipc-server=${pipe}`,
-  "av://lavfi:testsrc=size=320x240:rate=30:duration=30",
+  "av://lavfi:sine=frequency=440:duration=30",
 ], { stdio: "ignore", windowsHide: true, shell: false });
 
 let socket;
@@ -61,7 +61,7 @@ try {
   for (const result of results) {
     if (result.error !== "success") throw new Error(JSON.stringify(result));
   }
-  console.log(`MPV IPC validado: ${path.basename(mpv)}; play/pause/seek responderam com sucesso.`);
+  console.log(`MPV áudio invisível validado: ${path.basename(mpv)}; play/pause/seek responderam com sucesso.`);
 } finally {
   try { socket.write(`${JSON.stringify({ command: ["quit"] })}\n`); } catch {}
   socket.destroy();
