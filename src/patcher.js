@@ -146,6 +146,34 @@ function mpvRequest(session, command) {
   });
 }
 
+async function waitForMpvAudio(session, timeoutMs = 12000) {
+  const deadline = Date.now() + timeoutMs;
+  while (mpvSessions.has(session.key) && Date.now() < deadline) {
+    const tracks = await mpvRequest(session, ["get_property", "track-list"]);
+    if (tracks.ok && Array.isArray(tracks.data) && tracks.data.some((track) => track?.type === "audio")) {
+      const device = await mpvRequest(session, ["get_property", "audio-device"]);
+      return { ok: true, audioDevice: typeof device.data === "string" ? device.data : "auto" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return { ok: false };
+}
+
+function buildHeaderArgs(headers) {
+  if (!headers || typeof headers !== "object") return [];
+  let userAgent = "VLC/3.0.20 LibVLC/3.0.20";
+  const fields = [];
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value !== "string") continue;
+    if (key.toLowerCase() === "user-agent") userAgent = value;
+    else fields.push(`${key}: ${value}`);
+  }
+  const args = [];
+  if (userAgent) args.push(`--user-agent=${userAgent}`);
+  if (fields.length > 0) args.push(`--http-header-fields=${fields.join(",")}`);
+  return args;
+}
+
 function findVlcExecutable() {
   const candidates = [
     process.env.HARBOR_VLC_PATH,
@@ -234,6 +262,7 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, async (event, payload) => {
       hwnd = surface.getNativeWindowHandle().readUInt32LE(0);
     }
     const pipe = `\\\\.\\pipe\\harbor-mpv-${process.pid}-${key}-${Date.now()}`;
+    const headerArgs = buildHeaderArgs(payload?.headers);
     const args = [
       "--no-config",
       "--idle=no",
@@ -243,6 +272,13 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, async (event, payload) => {
       "--input-default-bindings=no",
       "--osc=no",
       "--hwdec=auto-safe",
+      "--cache=yes",
+      "--cache-pause=no",
+      "--cache-pause-initial=no",
+      "--demuxer-readahead-secs=5",
+      "--demuxer-max-bytes=16MiB",
+      "--demuxer-max-back-bytes=4MiB",
+      ...headerArgs,
       ...(audioOnly ? ["--vid=no"] : [`--wid=${hwnd}`]),
       `--input-ipc-server=${pipe}`,
       mediaUrl.toString(),
@@ -271,6 +307,14 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, async (event, payload) => {
     if (!connected) {
       closeMpvSession(key);
       return { ok: false, error: "O MPV iniciou, mas a ponte de audio nao respondeu." };
+    }
+    if (audioOnly) {
+      const loaded = await waitForMpvAudio(session);
+      if (!loaded.ok) {
+        closeMpvSession(key);
+        return { ok: false, error: "O MPV nao conseguiu abrir nenhuma faixa de audio desta fonte." };
+      }
+      return { ok: true, audioDevice: loaded.audioDevice };
     }
     return { ok: true };
   } catch (error) {
