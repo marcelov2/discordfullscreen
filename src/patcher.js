@@ -33,6 +33,7 @@ function findMpvExecutable() {
     process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "mpv", "mpv.exe"),
     process.env.USERPROFILE && path.join(process.env.USERPROFILE, "scoop", "apps", "mpv", "current", "mpv.exe"),
     "C:\\mpv\\mpv.exe",
+    "C:\\mvp\\mpv.exe",
   ].filter(Boolean);
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
