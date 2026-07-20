@@ -72,7 +72,7 @@ function closeMpvSession(key) {
   } catch {}
   try { session.socket?.destroy(); } catch {}
   try { session.child?.kill(); } catch {}
-  try { if (!session.window?.isDestroyed()) session.window.destroy(); } catch {}
+  try { if (session.window && !session.window.isDestroyed()) session.window.destroy(); } catch {}
 }
 
 function connectMpvPipe(session, attempts = 40) {
@@ -213,37 +213,36 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
   } catch {
     return { ok: false, error: "Endereço de mídia inválido." };
   }
-  const bounds = normalizeRect(owner, payload?.rect);
-  if (!bounds) return { ok: false, error: "Área de vídeo inválida." };
+  const audioOnly = payload?.audioOnly === true;
+  const bounds = audioOnly ? null : normalizeRect(owner, payload?.rect);
+  if (!audioOnly && !bounds) return { ok: false, error: "Área de vídeo inválida." };
   const key = owner.id;
   closeMpvSession(key);
   try {
-    const SurfaceWindow = electron.BaseWindow || electron.BrowserWindow;
-    const surface = new SurfaceWindow({
-      parent: owner,
-      modal: false,
-      frame: false,
-      show: false,
-      focusable: false,
-      skipTaskbar: true,
-      backgroundColor: "#000000",
-      hasShadow: false,
-      ...(electron.BaseWindow ? {} : { webPreferences: { sandbox: true, contextIsolation: true } }),
-    });
-    surface.setBounds(bounds);
-    surface.setIgnoreMouseEvents?.(true);
-    const hwnd = surface.getNativeWindowHandle().readUInt32LE(0);
+    let surface = null;
+    let hwnd = null;
+    if (!audioOnly) {
+      const SurfaceWindow = electron.BaseWindow || electron.BrowserWindow;
+      surface = new SurfaceWindow({
+        parent: owner, modal: false, frame: false, show: false, focusable: false,
+        skipTaskbar: true, backgroundColor: "#000000", hasShadow: false,
+        ...(electron.BaseWindow ? {} : { webPreferences: { sandbox: true, contextIsolation: true } }),
+      });
+      surface.setBounds(bounds);
+      surface.setIgnoreMouseEvents?.(true);
+      hwnd = surface.getNativeWindowHandle().readUInt32LE(0);
+    }
     const pipe = `\\\\.\\pipe\\harbor-mpv-${process.pid}-${key}-${Date.now()}`;
     const args = [
       "--no-config",
       "--idle=no",
-      "--force-window=yes",
+      `--force-window=${audioOnly ? "no" : "yes"}`,
       "--no-border",
       "--show-in-taskbar=no",
       "--input-default-bindings=no",
       "--osc=no",
       "--hwdec=auto-safe",
-      `--wid=${hwnd}`,
+      ...(audioOnly ? ["--vid=no"] : [`--wid=${hwnd}`]),
       `--input-ipc-server=${pipe}`,
       mediaUrl.toString(),
     ];
@@ -254,11 +253,11 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
     };
     mpvSessions.set(key, session);
     child.once("exit", () => closeMpvSession(key));
-    surface.once("closed", () => closeMpvSession(key));
+    surface?.once("closed", () => closeMpvSession(key));
     owner.once("closed", () => closeMpvSession(key));
     connectMpvPipe(session);
-    if (typeof surface.showInactive === "function") surface.showInactive();
-    else surface.show();
+    if (surface && typeof surface.showInactive === "function") surface.showInactive();
+    else surface?.show();
     return { ok: true };
   } catch (error) {
     closeMpvSession(key);
@@ -282,7 +281,7 @@ electron.ipcMain.handle(MPV_RECT_CHANNEL, (event, rawRect) => {
   if (!trustedDiscordSender(event)) return { ok: false };
   const session = mpvSessions.get(sessionKey(event));
   const bounds = session && normalizeRect(session.owner, rawRect);
-  if (!session || !bounds || session.window.isDestroyed()) return { ok: false };
+  if (!session?.window || !bounds || session.window.isDestroyed()) return { ok: false };
   session.window.setBounds(bounds, false);
   return { ok: true };
 });
@@ -298,7 +297,7 @@ electron.ipcMain.removeHandler(MPV_VISIBILITY_CHANNEL);
 electron.ipcMain.handle(MPV_VISIBILITY_CHANNEL, (event, visible) => {
   if (!trustedDiscordSender(event)) return { ok: false };
   const session = mpvSessions.get(sessionKey(event));
-  if (!session || session.window.isDestroyed()) return { ok: false };
+  if (!session?.window || session.window.isDestroyed()) return { ok: false };
   if (visible === false) session.window.hide();
   else if (typeof session.window.showInactive === "function") session.window.showInactive();
   else session.window.show();

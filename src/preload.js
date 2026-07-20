@@ -91,7 +91,8 @@ window.addEventListener("message", (event) => {
     activeMpvFrame = activityFrame(event);
     void ipcRenderer.invoke(MPV_OPEN_CHANNEL, {
       url: event.data.url,
-      rect: activityRect(event, event.data.rect),
+      audioOnly: event.data.audioOnly === true,
+      rect: event.data.audioOnly === true ? null : activityRect(event, event.data.rect),
     }).then(
       (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
       (error) => reply(event, { type: "harbor-mpv-result", requestId, ok: false, error: String(error) }),
