@@ -36,11 +36,13 @@ window.addEventListener("message", (event) => {
   const requestId = typeof event.data.requestId === "string" ? event.data.requestId.slice(0, 100) : "";
   if (!requestId) return;
   if (event.data.type === "harbor-vlc-probe") {
+    log("vlc:probe");
     void ipcRenderer.invoke(VLC_STATUS_CHANNEL).then(
       (result) => reply(event, { type: "harbor-vlc-status", requestId, available: result?.available === true }),
       () => reply(event, { type: "harbor-vlc-status", requestId, available: false }),
     );
   } else if (event.data.type === "harbor-vlc-open") {
+    log("vlc:open-request");
     void ipcRenderer.invoke(VLC_OPEN_CHANNEL, event.data.url).then(
       (result) => reply(event, {
         type: "harbor-vlc-result",
@@ -62,6 +64,13 @@ const rendererPatch = String.raw`
 (() => {
   if (globalThis.__harborFullscreenPatch) return;
   globalThis.__harborFullscreenPatch = { version: 2, patchedFrames: 0, vlcBridge: true };
+  const transporteOrigin = "https://1519931991066279956.discordsays.com";
+  window.addEventListener("message", (event) => {
+    if (event.origin !== transporteOrigin) return;
+    if (event.data?.type === "harbor-vlc-probe" || event.data?.type === "harbor-vlc-open") {
+      event.stopImmediatePropagation();
+    }
+  }, true);
   const setAttribute = Element.prototype.setAttribute;
   const getAttribute = Element.prototype.getAttribute;
   const createElement = Document.prototype.createElement;
