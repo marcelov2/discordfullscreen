@@ -23,4 +23,11 @@ if (!payload["patcher.js"].includes('shell: false')) {
 if (!payload["patcher.js"].includes("--wid=${hwnd}") || !payload["preload.js"].includes("harbor-mpv-open")) {
   throw new Error("a ponte MPV embutida não está presente");
 }
+if (!payload["patcher.js"].includes('path.join(__dirname, "mpv", "mpv.exe")')) {
+  throw new Error("o MPV instalado junto do plugin nao e priorizado");
+}
+if (!installer.includes("AE329F16BCD9CF6C9F86D64E7977F957FB3FDAA2527451572F55C2039A369BFF") ||
+    !installer.includes("Expand-Archive -LiteralPath $mpvZip")) {
+  throw new Error("o download verificado do MPV nao esta presente");
+}
 console.log("Instalador validado: fullscreen + pontes VLC/MPV seguras.");

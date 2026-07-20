@@ -29,6 +29,7 @@ function findOnPath(name) {
 function findMpvExecutable() {
   const candidates = [
     process.env.HARBOR_MPV_PATH,
+    path.join(__dirname, "mpv", "mpv.exe"),
     findOnPath("mpv.exe"),
     process.env.ProgramFiles && path.join(process.env.ProgramFiles, "mpv", "mpv.exe"),
     process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "mpv", "mpv.exe"),
@@ -201,7 +202,7 @@ electron.ipcMain.handle(MPV_STATUS_CHANNEL, (event) => ({
 }));
 
 electron.ipcMain.removeHandler(MPV_OPEN_CHANNEL);
-electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
+electron.ipcMain.handle(MPV_OPEN_CHANNEL, async (event, payload) => {
   if (!trustedDiscordSender(event)) return { ok: false, error: "Origem não autorizada." };
   const owner = ownerForEvent(event);
   const mpv = findMpvExecutable();
@@ -258,6 +259,19 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
     connectMpvPipe(session);
     if (surface && typeof surface.showInactive === "function") surface.showInactive();
     else surface?.show();
+    const connected = await new Promise((resolve) => {
+      const deadline = Date.now() + 5000;
+      const check = () => {
+        if (session.connected) return resolve(true);
+        if (!mpvSessions.has(key) || Date.now() >= deadline) return resolve(false);
+        setTimeout(check, 50);
+      };
+      check();
+    });
+    if (!connected) {
+      closeMpvSession(key);
+      return { ok: false, error: "O MPV iniciou, mas a ponte de audio nao respondeu." };
+    }
     return { ok: true };
   } catch (error) {
     closeMpvSession(key);
