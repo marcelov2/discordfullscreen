@@ -35,8 +35,14 @@ foreach ($property in $payload.PSObject.Properties) {
 }
 
 . (Join-Path $InstallRoot 'patch-common.ps1')
-$apps = @(Get-HarborDiscordApps -DiscordRoot $DiscordRoot)
-if ($apps.Count -eq 0) { throw "Nenhuma instalacao do Discord encontrada em $DiscordRoot" }
+$apps = @(Get-HarborDiscordApps -DiscordRoot $DiscordRoot | Where-Object {
+    $resources = Join-Path $_.FullName 'resources'
+    (Test-Path -LiteralPath (Join-Path $resources 'app.asar')) -or
+        (Test-Path -LiteralPath (Join-Path $resources '_app.asar') -PathType Leaf)
+})
+if ($apps.Count -eq 0) {
+    throw "Nenhuma instalacao completa do Discord encontrada em $DiscordRoot. Aguarde a atualizacao terminar e tente novamente."
+}
 
 $patcher = Join-Path $InstallRoot 'patcher.js'
 $installed = Install-HarborPatchIntoApp -AppDir $apps[0].FullName -PatcherPath $patcher 6>$null
