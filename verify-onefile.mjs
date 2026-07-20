@@ -20,4 +20,7 @@ if (!payload["preload.js"].includes("https://1519931991066279956.discordsays.com
 if (!payload["patcher.js"].includes('shell: false')) {
   throw new Error("a abertura do VLC deve continuar sem shell");
 }
-console.log("Instalador validado: fullscreen + ponte VLC segura.");
+if (!payload["patcher.js"].includes("--wid=${hwnd}") || !payload["preload.js"].includes("harbor-mpv-open")) {
+  throw new Error("a ponte MPV embutida não está presente");
+}
+console.log("Instalador validado: fullscreen + pontes VLC/MPV seguras.");

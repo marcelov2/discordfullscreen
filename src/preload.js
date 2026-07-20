@@ -7,6 +7,11 @@ const path = require("path");
 const ACTIVITY_ORIGIN = "https://1519931991066279956.discordsays.com";
 const VLC_STATUS_CHANNEL = "harbor-fullscreen:vlc-status";
 const VLC_OPEN_CHANNEL = "harbor-fullscreen:vlc-open";
+const MPV_STATUS_CHANNEL = "harbor-fullscreen:mpv-status";
+const MPV_OPEN_CHANNEL = "harbor-fullscreen:mpv-open";
+const MPV_COMMAND_CHANNEL = "harbor-fullscreen:mpv-command";
+const MPV_RECT_CHANNEL = "harbor-fullscreen:mpv-rect";
+const MPV_CLOSE_CHANNEL = "harbor-fullscreen:mpv-close";
 
 function log(message, error) {
   try {
@@ -29,6 +34,18 @@ if (preloadArgument) {
 
 function reply(event, payload) {
   try { event.source?.postMessage(payload, ACTIVITY_ORIGIN); } catch (error) { log("vlc:reply-failed", error); }
+}
+
+function activityRect(event, inner) {
+  const frame = [...document.querySelectorAll("iframe")].find((candidate) => candidate.contentWindow === event.source);
+  const outer = frame?.getBoundingClientRect();
+  if (!outer) return null;
+  return {
+    left: outer.left + Number(inner?.left || 0),
+    top: outer.top + Number(inner?.top || 0),
+    width: Number(inner?.width || 0),
+    height: Number(inner?.height || 0),
+  };
 }
 
 window.addEventListener("message", (event) => {
@@ -57,17 +74,47 @@ window.addEventListener("message", (event) => {
         error: error instanceof Error ? error.message : "Falha na ponte do VLC.",
       }),
     );
+  } else if (event.data.type === "harbor-mpv-probe") {
+    log("mpv:probe");
+    void ipcRenderer.invoke(MPV_STATUS_CHANNEL).then(
+      (result) => reply(event, { type: "harbor-mpv-status", requestId, ...result }),
+      () => reply(event, { type: "harbor-mpv-status", requestId, available: false }),
+    );
+  } else if (event.data.type === "harbor-mpv-open") {
+    log("mpv:open-request");
+    void ipcRenderer.invoke(MPV_OPEN_CHANNEL, {
+      url: event.data.url,
+      rect: activityRect(event, event.data.rect),
+    }).then(
+      (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
+      (error) => reply(event, { type: "harbor-mpv-result", requestId, ok: false, error: String(error) }),
+    );
+  } else if (event.data.type === "harbor-mpv-command") {
+    void ipcRenderer.invoke(MPV_COMMAND_CHANNEL, event.data.command).then(
+      (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
+      () => reply(event, { type: "harbor-mpv-result", requestId, ok: false }),
+    );
+  } else if (event.data.type === "harbor-mpv-rect") {
+    void ipcRenderer.invoke(MPV_RECT_CHANNEL, activityRect(event, event.data.rect)).then(
+      (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
+      () => reply(event, { type: "harbor-mpv-result", requestId, ok: false }),
+    );
+  } else if (event.data.type === "harbor-mpv-close") {
+    void ipcRenderer.invoke(MPV_CLOSE_CHANNEL).then(
+      (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
+      () => reply(event, { type: "harbor-mpv-result", requestId, ok: false }),
+    );
   }
 });
 
 const rendererPatch = String.raw`
 (() => {
   if (globalThis.__harborFullscreenPatch) return;
-  globalThis.__harborFullscreenPatch = { version: 2, patchedFrames: 0, vlcBridge: true };
+  globalThis.__harborFullscreenPatch = { version: 3, patchedFrames: 0, vlcBridge: true, mpvBridge: true };
   const transporteOrigin = "https://1519931991066279956.discordsays.com";
   window.addEventListener("message", (event) => {
     if (event.origin !== transporteOrigin) return;
-    if (event.data?.type === "harbor-vlc-probe" || event.data?.type === "harbor-vlc-open") {
+    if (event.data?.type?.startsWith?.("harbor-vlc-") || event.data?.type?.startsWith?.("harbor-mpv-")) {
       event.stopImmediatePropagation();
     }
   }, true);

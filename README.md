@@ -1,5 +1,7 @@
 # Discord Activity Fullscreen
 
+O patch tambem oferece MPV embutido na janela do Discord. Nesse modo, play, pausa e busca continuam ligados aos controles do Together, sem abrir uma janela separada. Instale `mpv.exe` no `PATH`, em `C:\mpv`, pelo Scoop, ou defina `HARBOR_MPV_PATH`.
+
 Patch independente que permite usar tela cheia nas Activities do Discord Desktop e oferece uma ponte opcional para abrir no VLC streams sem áudio compatível no navegador.
 
 Ele concede a permissao `fullscreen` ao iframe da Activity. Na Activity do TRANSPORTE, também permite abrir no VLC uma URL HTTP/HTTPS quando o player detectar áudio incompatível. A ponte não executa comandos de shell e não é exposta a outras Activities.
