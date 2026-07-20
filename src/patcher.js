@@ -14,6 +14,7 @@ const MPV_OPEN_CHANNEL = "harbor-fullscreen:mpv-open";
 const MPV_COMMAND_CHANNEL = "harbor-fullscreen:mpv-command";
 const MPV_RECT_CHANNEL = "harbor-fullscreen:mpv-rect";
 const MPV_CLOSE_CHANNEL = "harbor-fullscreen:mpv-close";
+const MPV_VISIBILITY_CHANNEL = "harbor-fullscreen:mpv-visibility";
 
 const mpvSessions = new Map();
 
@@ -217,7 +218,8 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
   const key = owner.id;
   closeMpvSession(key);
   try {
-    const surface = new electron.BrowserWindow({
+    const SurfaceWindow = electron.BaseWindow || electron.BrowserWindow;
+    const surface = new SurfaceWindow({
       parent: owner,
       modal: false,
       frame: false,
@@ -226,10 +228,10 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
       skipTaskbar: true,
       backgroundColor: "#000000",
       hasShadow: false,
-      webPreferences: { sandbox: true, contextIsolation: true },
+      ...(electron.BaseWindow ? {} : { webPreferences: { sandbox: true, contextIsolation: true } }),
     });
     surface.setBounds(bounds);
-    surface.setIgnoreMouseEvents(true);
+    surface.setIgnoreMouseEvents?.(true);
     const hwnd = surface.getNativeWindowHandle().readUInt32LE(0);
     const pipe = `\\\\.\\pipe\\harbor-mpv-${process.pid}-${key}-${Date.now()}`;
     const args = [
@@ -255,7 +257,8 @@ electron.ipcMain.handle(MPV_OPEN_CHANNEL, (event, payload) => {
     surface.once("closed", () => closeMpvSession(key));
     owner.once("closed", () => closeMpvSession(key));
     connectMpvPipe(session);
-    surface.showInactive();
+    if (typeof surface.showInactive === "function") surface.showInactive();
+    else surface.show();
     return { ok: true };
   } catch (error) {
     closeMpvSession(key);
@@ -288,6 +291,17 @@ electron.ipcMain.removeHandler(MPV_CLOSE_CHANNEL);
 electron.ipcMain.handle(MPV_CLOSE_CHANNEL, (event) => {
   if (!trustedDiscordSender(event)) return { ok: false };
   closeMpvSession(sessionKey(event));
+  return { ok: true };
+});
+
+electron.ipcMain.removeHandler(MPV_VISIBILITY_CHANNEL);
+electron.ipcMain.handle(MPV_VISIBILITY_CHANNEL, (event, visible) => {
+  if (!trustedDiscordSender(event)) return { ok: false };
+  const session = mpvSessions.get(sessionKey(event));
+  if (!session || session.window.isDestroyed()) return { ok: false };
+  if (visible === false) session.window.hide();
+  else if (typeof session.window.showInactive === "function") session.window.showInactive();
+  else session.window.show();
   return { ok: true };
 });
 

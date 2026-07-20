@@ -12,6 +12,8 @@ const MPV_OPEN_CHANNEL = "harbor-fullscreen:mpv-open";
 const MPV_COMMAND_CHANNEL = "harbor-fullscreen:mpv-command";
 const MPV_RECT_CHANNEL = "harbor-fullscreen:mpv-rect";
 const MPV_CLOSE_CHANNEL = "harbor-fullscreen:mpv-close";
+const MPV_VISIBILITY_CHANNEL = "harbor-fullscreen:mpv-visibility";
+let activeMpvFrame = null;
 
 function log(message, error) {
   try {
@@ -36,8 +38,12 @@ function reply(event, payload) {
   try { event.source?.postMessage(payload, ACTIVITY_ORIGIN); } catch (error) { log("vlc:reply-failed", error); }
 }
 
+function activityFrame(event) {
+  return [...document.querySelectorAll("iframe")].find((candidate) => candidate.contentWindow === event.source) || null;
+}
+
 function activityRect(event, inner) {
-  const frame = [...document.querySelectorAll("iframe")].find((candidate) => candidate.contentWindow === event.source);
+  const frame = activityFrame(event);
   const outer = frame?.getBoundingClientRect();
   if (!outer) return null;
   return {
@@ -82,6 +88,7 @@ window.addEventListener("message", (event) => {
     );
   } else if (event.data.type === "harbor-mpv-open") {
     log("mpv:open-request");
+    activeMpvFrame = activityFrame(event);
     void ipcRenderer.invoke(MPV_OPEN_CHANNEL, {
       url: event.data.url,
       rect: activityRect(event, event.data.rect),
@@ -100,12 +107,26 @@ window.addEventListener("message", (event) => {
       () => reply(event, { type: "harbor-mpv-result", requestId, ok: false }),
     );
   } else if (event.data.type === "harbor-mpv-close") {
+    activeMpvFrame = null;
     void ipcRenderer.invoke(MPV_CLOSE_CHANNEL).then(
+      (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
+      () => reply(event, { type: "harbor-mpv-result", requestId, ok: false }),
+    );
+  } else if (event.data.type === "harbor-mpv-visibility") {
+    void ipcRenderer.invoke(MPV_VISIBILITY_CHANNEL, event.data.visible === true).then(
       (result) => reply(event, { type: "harbor-mpv-result", requestId, ...result }),
       () => reply(event, { type: "harbor-mpv-result", requestId, ok: false }),
     );
   }
 });
+
+setInterval(() => {
+  if (!activeMpvFrame) return;
+  if (activeMpvFrame.isConnected && activeMpvFrame.src?.includes("discordsays.com")) return;
+  activeMpvFrame = null;
+  log("mpv:activity-closed");
+  void ipcRenderer.invoke(MPV_CLOSE_CHANNEL).catch(() => {});
+}, 500).unref?.();
 
 const rendererPatch = String.raw`
 (() => {
