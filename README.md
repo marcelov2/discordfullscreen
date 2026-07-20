@@ -1,12 +1,12 @@
-# Harbor Fullscreen e Together WebRTC Patch
+# Discord Activity Fullscreen
 
-Patch independente para permitir tela cheia, suporte AC3/E-AC3 e uma ponte WebRTC nativa para o modo Harbor Together no Discord Desktop.
+Patch independente que permite usar tela cheia nas Activities do Discord Desktop.
 
-O modo Solo não usa a ponte. No Together, clientes sem o patch continuam automaticamente pela transmissão H.264/WebSocket compatível com Activities.
+Ele apenas concede a permissao `fullscreen` ao iframe da Activity. Nao adiciona codecs, WebRTC, controles, janelas externas nem modifica o funcionamento das Activities.
 
-Não depende de Vencord ou BetterDiscord e continua funcionando após atualizações do Discord.
+Nao depende de Vencord ou BetterDiscord e reaplica o patch quando o Discord recebe uma atualizacao.
 
-## Instalação
+## Instalacao
 
 Abra o PowerShell e execute:
 
@@ -14,16 +14,14 @@ Abra o PowerShell e execute:
 iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/refs/heads/main/install-onefile.ps1" | iex
 ```
 
-O instalador fecha o Discord, instala o patch de fullscreen, AC3/E-AC3 e Together WebRTC, abre o Discord novamente e encerra o terminal automaticamente.
+O instalador fecha o Discord, instala a permissao de tela cheia e abre o Discord novamente.
 
-Depois, entre na Activity do Harbor e use o botão de tela cheia do player.
+## Desinstalacao
 
-## Desinstalação
-
-Feche o Discord e execute no PowerShell:
+Feche o Discord e execute:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:APPDATA\HarborFullscreenPatch\uninstall.ps1"
 ```
 
-Depois da desinstalação, abra o Discord normalmente.
+Depois da desinstalacao, abra o Discord normalmente.

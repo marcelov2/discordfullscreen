@@ -9,7 +9,7 @@ const match = installer.match(/\$payloadBase64 = '([^']+)'/u);
 if (!match) throw new Error("payloadBase64 não encontrado");
 const payload = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
 payload["patcher.js"] = fs.readFileSync(path.join(root, "src", "patcher.js"), "utf8");
-payload["activity-patch.js"] = fs.readFileSync(path.join(root, "src", "activity-patch.js"), "utf8");
+delete payload["activity-patch.js"];
 const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
 fs.writeFileSync(installerPath, installer.replace(match[0], `$payloadBase64 = '${encoded}'`), "utf8");
 console.log(`install-onefile.ps1 atualizado (${encoded.length} bytes base64)`);
