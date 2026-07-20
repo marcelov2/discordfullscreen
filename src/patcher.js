@@ -3,8 +3,60 @@
 const electron = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { spawn } = require("child_process");
 
 const PATCH_NAME = "Harbor Fullscreen Patch";
+const VLC_STATUS_CHANNEL = "harbor-fullscreen:vlc-status";
+const VLC_OPEN_CHANNEL = "harbor-fullscreen:vlc-open";
+
+function findVlcExecutable() {
+  const candidates = [
+    process.env.HARBOR_VLC_PATH,
+    process.env.ProgramFiles && path.join(process.env.ProgramFiles, "VideoLAN", "VLC", "vlc.exe"),
+    process.env["ProgramFiles(x86)"] && path.join(process.env["ProgramFiles(x86)"], "VideoLAN", "VLC", "vlc.exe"),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "VideoLAN", "VLC", "vlc.exe"),
+  ].filter(Boolean);
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+function trustedDiscordSender(event) {
+  try {
+    const host = new URL(event.senderFrame?.url || "").hostname.toLowerCase();
+    return host === "discord.com" || host.endsWith(".discord.com");
+  } catch {
+    return false;
+  }
+}
+
+electron.ipcMain.removeHandler(VLC_STATUS_CHANNEL);
+electron.ipcMain.handle(VLC_STATUS_CHANNEL, (event) => ({
+  available: trustedDiscordSender(event) && !!findVlcExecutable(),
+}));
+electron.ipcMain.removeHandler(VLC_OPEN_CHANNEL);
+electron.ipcMain.handle(VLC_OPEN_CHANNEL, (event, rawUrl) => {
+  if (!trustedDiscordSender(event)) return { ok: false, error: "Origem não autorizada." };
+  let mediaUrl;
+  try {
+    mediaUrl = new URL(String(rawUrl || ""));
+    if (mediaUrl.protocol !== "https:" && mediaUrl.protocol !== "http:") throw new Error("protocol");
+  } catch {
+    return { ok: false, error: "Endereço de mídia inválido." };
+  }
+  const vlc = findVlcExecutable();
+  if (!vlc) return { ok: false, error: "VLC não encontrado no computador." };
+  try {
+    const child = spawn(vlc, [mediaUrl.toString()], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+      shell: false,
+    });
+    child.unref();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Falha ao iniciar o VLC." };
+  }
+});
 
 function versionParts(name) {
   return name.replace(/^app-/, "").split(".").map((part) => Number.parseInt(part, 10) || 0);
@@ -38,7 +90,7 @@ function writeLoader(resourcesDir) {
     );
     fs.writeFileSync(
       path.join(appAsar, ".harbor-fullscreen-patch.json"),
-      JSON.stringify({ name: PATCH_NAME, version: 1 }, null, 2),
+      JSON.stringify({ name: PATCH_NAME, version: 2 }, null, 2),
     );
     return true;
   } catch {

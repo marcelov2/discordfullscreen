@@ -1,8 +1,8 @@
 # Discord Activity Fullscreen
 
-Patch independente que permite usar tela cheia nas Activities do Discord Desktop.
+Patch independente que permite usar tela cheia nas Activities do Discord Desktop e oferece uma ponte opcional para abrir no VLC streams sem áudio compatível no navegador.
 
-Ele apenas concede a permissao `fullscreen` ao iframe da Activity. Nao adiciona codecs, WebRTC, controles, janelas externas nem modifica o funcionamento das Activities.
+Ele concede a permissao `fullscreen` ao iframe da Activity. Na Activity do TRANSPORTE, também permite abrir no VLC uma URL HTTP/HTTPS quando o player detectar áudio incompatível. A ponte não executa comandos de shell e não é exposta a outras Activities.
 
 Nao depende de Vencord ou BetterDiscord e reaplica o patch quando o Discord recebe uma atualizacao.
 
