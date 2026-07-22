@@ -1,12 +1,10 @@
-# Discord Activity Fullscreen
+# TRANSPORTE Fullscreen + AC3/E-AC3
 
-Patch independente que permite usar tela cheia nas Activities do Discord Desktop.
+Instalador independente para habilitar tela cheia real e áudio AC3/E-AC3 na Activity do TRANSPORTE no Discord Desktop para Windows.
 
-Ele concede somente a permissão `fullscreen` ao iframe da Activity. Não inclui reprodução de vídeo, VLC ou MPV.
+O script baixa a build personalizada do Electron 37.6.0, valida o SHA-256 antes de instalar, guarda os binários originais e configura o reparo automático do fullscreen.
 
-Nao depende de Vencord ou BetterDiscord e reaplica o patch quando o Discord recebe uma atualizacao.
-
-## Instalacao
+## Instalação
 
 Abra o PowerShell e execute:
 
@@ -14,14 +12,20 @@ Abra o PowerShell e execute:
 iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/refs/heads/main/install-onefile.ps1" | iex
 ```
 
-O instalador fecha o Discord, instala a permissao de tela cheia e abre o Discord novamente.
+O instalador fecha o Discord, baixa aproximadamente 121 MB, instala fullscreen e AC3/E-AC3 e abre o Discord novamente. Não é necessário baixar o ZIP manualmente.
 
-## Desinstalacao
+Depois, entre na Activity do TRANSPORTE e use o botão de tela cheia do player.
 
-Feche o Discord e execute:
+> O Krisp oficial não funciona em executáveis sem a assinatura digital da Discord. Nas configurações de voz, use a supressão de ruído **Padrão**.
+
+Uma atualização do Discord pode criar outra pasta `app-*`. O reparo automático mantém o fullscreen, mas uma nova versão do runtime AC3 deve ser publicada antes de substituir os binários de outra versão do Discord.
+
+## Desinstalação
+
+Feche o Discord e execute no PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:APPDATA\HarborFullscreenPatch\uninstall.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:APPDATA\TransporteFullscreenPatch\uninstall.ps1"
 ```
 
-Depois da desinstalacao, abra o Discord normalmente.
+O desinstalador remove o fullscreen e restaura os binários oficiais guardados no backup.
