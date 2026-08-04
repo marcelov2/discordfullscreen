@@ -19,4 +19,10 @@ for (const forbidden of ["harbor-vlc", "harbor-mpv", "vlcBridge", "mpvBridge", "
     throw new Error(`ponte de vídeo ainda presente: ${forbidden}`);
   }
 }
+if (!payload["patcher.js"].includes("discordIconPath") || !payload["patcher.js"].includes("options.icon")) {
+  throw new Error("correcao do icone do Discord ausente do patcher");
+}
+if (!installer.includes("Export-DiscordOriginalIcon") || !installer.includes("Set-DiscordShortcutIcons")) {
+  throw new Error("correcao do icone do Discord ausente do instalador");
+}
 console.log("Instalador validado: somente fullscreen, sem VLC/MPV.");

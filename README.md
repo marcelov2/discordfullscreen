@@ -14,6 +14,8 @@ iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/refs/he
 
 O instalador fecha o Discord, baixa aproximadamente 121 MB, instala fullscreen e AC3/E-AC3 e abre o Discord novamente. Não é necessário baixar o ZIP manualmente.
 
+O ícone original do Discord é preservado na janela, na barra de tarefas e nos atalhos, mesmo usando o runtime personalizado do Electron.
+
 Depois, entre na Activity do TRANSPORTE e use o botão de tela cheia do player.
 
 > O Krisp oficial não funciona em executáveis sem a assinatura digital da Discord. Nas configurações de voz, use a supressão de ruído **Padrão**.

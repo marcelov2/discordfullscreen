@@ -5,6 +5,11 @@ const fs = require("fs");
 const path = require("path");
 
 const PATCH_NAME = "Harbor Fullscreen Patch";
+const discordIconPath = path.join(
+  process.env.APPDATA || __dirname,
+  "TransporteFullscreenPatch",
+  "discord.ico",
+);
 
 function versionParts(name) {
   return name.replace(/^app-/, "").split(".").map((part) => Number.parseInt(part, 10) || 0);
@@ -83,6 +88,11 @@ const OriginalBrowserWindow = electron.BrowserWindow;
 
 class HarborPatchedBrowserWindow extends OriginalBrowserWindow {
   constructor(options) {
+    if (options && fs.existsSync(discordIconPath)) {
+      // The custom AC3 runtime is an Electron executable, whose embedded icon
+      // is Electron's. Force Discord's original icon on every native window.
+      options.icon = discordIconPath;
+    }
     if (options?.webPreferences?.preload) {
       const encodedPreload = Buffer.from(options.webPreferences.preload, "utf8").toString("base64url");
       options.webPreferences.additionalArguments = [
