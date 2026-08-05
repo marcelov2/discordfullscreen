@@ -15,6 +15,7 @@ iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/refs/he
 O instalador fecha o Discord, baixa aproximadamente 121 MB, instala fullscreen e AC3/E-AC3 e abre o Discord novamente. Não é necessário baixar o ZIP manualmente.
 
 O `app.ico` da versão instalada do Discord é preservado na janela, na barra de tarefas e nos atalhos, mesmo usando o runtime personalizado do Electron. Se esse arquivo não existir, o instalador extrai o ícone do executável original como fallback.
+O arquivo copiado recebe um nome associado à versão instalada (`discord-app-*.ico`) para impedir que o cache de ícones do Windows continue mostrando uma imagem antiga.
 
 Depois, entre na Activity do TRANSPORTE e use o botão de tela cheia do player.
 

@@ -5,11 +5,24 @@ const fs = require("fs");
 const path = require("path");
 
 const PATCH_NAME = "Harbor Fullscreen Patch";
-const discordIconPath = path.join(
+const installRoot = path.join(
   process.env.APPDATA || __dirname,
   "TransporteFullscreenPatch",
-  "discord.ico",
 );
+
+function resolveDiscordIconPath() {
+  const markerPath = path.join(installRoot, "discord-icon-current.txt");
+  try {
+    const iconName = path.basename(fs.readFileSync(markerPath, "utf8").trim());
+    const versionedPath = path.join(installRoot, iconName);
+    if (/^discord-app-[\w.-]+\.ico$/i.test(iconName) && fs.existsSync(versionedPath)) {
+      return versionedPath;
+    }
+  } catch {}
+  return path.join(installRoot, "discord.ico");
+}
+
+const discordIconPath = resolveDiscordIconPath();
 
 function versionParts(name) {
   return name.replace(/^app-/, "").split(".").map((part) => Number.parseInt(part, 10) || 0);
