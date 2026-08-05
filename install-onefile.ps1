@@ -109,6 +109,7 @@ if ($Ac3BuildPath) {
 $backupRoot = Join-Path $InstallRoot 'runtime-backups'
 $discordIconPath = Join-Path $InstallRoot 'discord.ico'
 $appName = Split-Path -Leaf $apps[0].FullName
+$bundledDiscordIcon = Join-Path $apps[0].FullName 'app.ico'
 $originalDiscordExe = Join-Path $apps[0].FullName 'Discord.exe'
 $backedUpDiscordExe = Join-Path (Join-Path $backupRoot $appName) 'Discord.exe'
 $iconSource = if (Test-Path -LiteralPath $backedUpDiscordExe -PathType Leaf) {
@@ -116,7 +117,11 @@ $iconSource = if (Test-Path -LiteralPath $backedUpDiscordExe -PathType Leaf) {
 } else {
     $originalDiscordExe
 }
-Export-DiscordOriginalIcon -SourceExe $iconSource -Destination $discordIconPath | Out-Null
+if (Test-Path -LiteralPath $bundledDiscordIcon -PathType Leaf) {
+    Copy-Item -LiteralPath $bundledDiscordIcon -Destination $discordIconPath -Force
+} else {
+    Export-DiscordOriginalIcon -SourceExe $iconSource -Destination $discordIconPath | Out-Null
+}
 Install-HarborAc3RuntimeIntoApp -AppDir $apps[0].FullName -ArchivePath $archivePath -BackupRoot $backupRoot -ExpectedSha256 $Ac3BuildSha256 | Out-Null
 
 Write-Host '[4/5] Instalando o fullscreen...'

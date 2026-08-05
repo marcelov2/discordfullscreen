@@ -22,7 +22,11 @@ for (const forbidden of ["harbor-vlc", "harbor-mpv", "vlcBridge", "mpvBridge", "
 if (!payload["patcher.js"].includes("discordIconPath") || !payload["patcher.js"].includes("options.icon")) {
   throw new Error("correcao do icone do Discord ausente do patcher");
 }
-if (!installer.includes("Export-DiscordOriginalIcon") || !installer.includes("Set-DiscordShortcutIcons")) {
+if (
+  !installer.includes("Export-DiscordOriginalIcon")
+  || !installer.includes("Set-DiscordShortcutIcons")
+  || !installer.includes("bundledDiscordIcon")
+) {
   throw new Error("correcao do icone do Discord ausente do instalador");
 }
 console.log("Instalador validado: somente fullscreen, sem VLC/MPV.");
