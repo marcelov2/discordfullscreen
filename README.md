@@ -9,7 +9,7 @@ O script baixa a build personalizada do Electron 37.6.0, valida o SHA-256 antes 
 Abra o PowerShell e execute:
 
 ```powershell
-iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/refs/heads/main/install-onefile.ps1" | iex
+iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/main/install-onefile.ps1" | iex
 ```
 
 O instalador fecha o Discord, baixa aproximadamente 121 MB, instala fullscreen e AC3/E-AC3 e abre o Discord novamente. Não é necessário baixar o ZIP manualmente.
