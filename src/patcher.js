@@ -24,6 +24,13 @@ function resolveDiscordIconPath() {
 
 const discordIconPath = resolveDiscordIconPath();
 
+// Prevent the custom Electron runtime from appearing as "Electron" in the
+// Windows volume mixer and other shell surfaces.
+electron.app.setName("Discord");
+if (process.platform === "win32") {
+  electron.app.setAppUserModelId("com.squirrel.Discord.Discord");
+}
+
 function versionParts(name) {
   return name.replace(/^app-/, "").split(".").map((part) => Number.parseInt(part, 10) || 0);
 }
