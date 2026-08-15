@@ -14,8 +14,7 @@ function Get-HarborFileSha256 {
 function Test-HarborFileSha256 {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$ExpectedSha256,
-        [Parameter(Mandatory = $true)][string]$RceditPath
+        [Parameter(Mandatory = $true)][string]$ExpectedSha256
     )
     return (Get-HarborFileSha256 -Path $Path) -eq $ExpectedSha256.Trim().ToUpperInvariant()
 }
@@ -25,7 +24,8 @@ function Install-HarborAc3RuntimeIntoApp {
         [Parameter(Mandatory = $true)][string]$AppDir,
         [Parameter(Mandatory = $true)][string]$ArchivePath,
         [Parameter(Mandatory = $true)][string]$BackupRoot,
-        [Parameter(Mandatory = $true)][string]$ExpectedSha256
+        [Parameter(Mandatory = $true)][string]$ExpectedSha256,
+        [Parameter(Mandatory = $true)][string]$RceditPath
     )
 
     if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) {

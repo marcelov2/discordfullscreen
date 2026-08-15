@@ -9,10 +9,10 @@ const match = installer.match(/\$payloadBase64 = '([^']+)'/u);
 if (!match) throw new Error("payloadBase64 não encontrado");
 const payload = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
 
-for (const file of ["patcher.js", "preload.js"]) {
+for (const file of ["patcher.js", "preload.js", "patch-common.ps1", "repair.ps1", "uninstall.ps1"]) {
   const source = fs.readFileSync(path.join(root, "src", file), "utf8");
   if (payload[file] !== source) throw new Error(`${file} não corresponde ao instalador`);
-  new vm.Script(payload[file], { filename: file });
+  if (file.endsWith(".js")) new vm.Script(payload[file], { filename: file });
 }
 for (const forbidden of ["harbor-vlc", "harbor-mpv", "vlcBridge", "mpvBridge", "mpv.exe"]) {
   if (payload["patcher.js"].includes(forbidden) || payload["preload.js"].includes(forbidden)) {
@@ -32,5 +32,16 @@ if (
   || !installer.includes("discordIconMarker")
 ) {
   throw new Error("correcao do icone do Discord ausente do instalador");
+}
+const hashFunction = payload["patch-common.ps1"].match(/function Test-HarborFileSha256\s*\{([\s\S]*?)\n\}/u)?.[1] || "";
+const installFunction = payload["patch-common.ps1"].match(/function Install-HarborAc3RuntimeIntoApp\s*\{([\s\S]*?)\n\}/u)?.[1] || "";
+if (hashFunction.includes("RceditPath")) {
+  throw new Error("RceditPath foi adicionado incorretamente a Test-HarborFileSha256");
+}
+if (!installFunction.includes("RceditPath")) {
+  throw new Error("RceditPath ausente de Install-HarborAc3RuntimeIntoApp");
+}
+if (!installer.includes("Update-DiscordIconCache") || !installer.includes("RceditSha256")) {
+  throw new Error("atualizacao de identidade/cache ausente do instalador");
 }
 console.log("Instalador validado: somente fullscreen, sem VLC/MPV.");
