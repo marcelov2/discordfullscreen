@@ -1,6 +1,6 @@
 "use strict";
 
-const { webFrame } = require("electron");
+const { ipcRenderer, webFrame } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
@@ -22,6 +22,33 @@ if (preloadArgument) {
     log("preload:original-failed", error);
   }
 }
+
+const CAST_REQUEST = "TRANSPORTE_CHROMECAST_REQUEST";
+const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
+
+function isAllowedCastOrigin(origin) {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === "discordsays.com" || host.endsWith(".discordsays.com") || host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+window.addEventListener("message", (event) => {
+  const message = event.data;
+  if (!message || message.type !== CAST_REQUEST || typeof message.requestId !== "string") return;
+  if (!isAllowedCastOrigin(event.origin)) return;
+  const source = event.source;
+  if (!source || typeof source.postMessage !== "function") return;
+  void ipcRenderer.invoke("harbor-cast:request", {
+    action: message.action,
+    payload: message.payload,
+  }).then(
+    (result) => source.postMessage({ type: CAST_RESPONSE, requestId: message.requestId, ok: true, result }, event.origin),
+    (error) => source.postMessage({ type: CAST_RESPONSE, requestId: message.requestId, ok: false, error: error?.message || String(error) }, event.origin),
+  );
+});
 
 const rendererPatch = String.raw`
 (() => {
