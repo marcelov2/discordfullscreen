@@ -25,6 +25,8 @@ if (preloadArgument) {
 
 const CAST_REQUEST = "TRANSPORTE_CHROMECAST_REQUEST";
 const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
+const CAST_RELAY_REQUEST = "TRANSPORTE_CHROMECAST_RELAY_REQUEST";
+const CAST_RELAY_RESPONSE = "TRANSPORTE_CHROMECAST_RELAY_RESPONSE";
 
 function isAllowedCastOrigin(origin) {
   try {
@@ -35,25 +37,36 @@ function isAllowedCastOrigin(origin) {
   }
 }
 
-window.addEventListener("message", (event) => {
-  const message = event.data;
-  if (!message || message.type !== CAST_REQUEST || typeof message.requestId !== "string") return;
-  if (!isAllowedCastOrigin(event.origin)) return;
-  const source = event.source;
-  if (!source || typeof source.postMessage !== "function") return;
+document.addEventListener(CAST_RELAY_REQUEST, (event) => {
+  let message;
+  try {
+    message = JSON.parse(event.detail);
+  } catch {
+    return;
+  }
+  if (!message || typeof message.requestId !== "string" || !isAllowedCastOrigin(message.origin)) return;
   void ipcRenderer.invoke("harbor-cast:request", {
     action: message.action,
     payload: message.payload,
   }).then(
-    (result) => source.postMessage({ type: CAST_RESPONSE, requestId: message.requestId, ok: true, result }, event.origin),
-    (error) => source.postMessage({ type: CAST_RESPONSE, requestId: message.requestId, ok: false, error: error?.message || String(error) }, event.origin),
+    (result) => document.dispatchEvent(new CustomEvent(CAST_RELAY_RESPONSE, {
+      detail: JSON.stringify({ requestId: message.requestId, ok: true, result }),
+    })),
+    (error) => document.dispatchEvent(new CustomEvent(CAST_RELAY_RESPONSE, {
+      detail: JSON.stringify({ requestId: message.requestId, ok: false, error: error?.message || String(error) }),
+    })),
   );
 });
 
 const rendererPatch = String.raw`
 (() => {
   if (globalThis.__harborFullscreenPatch) return;
-  globalThis.__harborFullscreenPatch = { version: 3, patchedFrames: 0 };
+  globalThis.__harborFullscreenPatch = { version: 4, patchedFrames: 0 };
+  const CAST_REQUEST = "TRANSPORTE_CHROMECAST_REQUEST";
+  const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
+  const CAST_RELAY_REQUEST = "TRANSPORTE_CHROMECAST_RELAY_REQUEST";
+  const CAST_RELAY_RESPONSE = "TRANSPORTE_CHROMECAST_RELAY_RESPONSE";
+  const castRequestSources = new Map();
   const setAttribute = Element.prototype.setAttribute;
   const getAttribute = Element.prototype.getAttribute;
   const createElement = Document.prototype.createElement;
@@ -64,6 +77,32 @@ const rendererPatch = String.raw`
       return host === "discordsays.com" || host.endsWith(".discordsays.com");
     } catch { return false; }
   }
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.type !== CAST_REQUEST || typeof message.requestId !== "string") return;
+    if (!isActivity(event.origin) || !event.source || typeof event.source.postMessage !== "function") return;
+    castRequestSources.set(message.requestId, { source: event.source, origin: event.origin });
+    document.dispatchEvent(new CustomEvent(CAST_RELAY_REQUEST, {
+      detail: JSON.stringify({
+        requestId: message.requestId,
+        action: message.action,
+        payload: message.payload,
+        origin: event.origin,
+      }),
+    }));
+  });
+  document.addEventListener(CAST_RELAY_RESPONSE, (event) => {
+    let message;
+    try {
+      message = JSON.parse(event.detail);
+    } catch {
+      return;
+    }
+    const pending = castRequestSources.get(message?.requestId);
+    if (!pending) return;
+    castRequestSources.delete(message.requestId);
+    pending.source.postMessage({ type: CAST_RESPONSE, ...message }, pending.origin);
+  });
   function grant(frame) {
     if (!(frame instanceof HTMLIFrameElement)) return;
     const current = getAttribute.call(frame, "allow") || "";

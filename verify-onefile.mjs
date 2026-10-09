@@ -14,7 +14,11 @@ for (const file of ["patcher.js", "preload.js", "cast-bridge.js", "cast_channel.
   if (payload[file] !== source) throw new Error(`${file} não corresponde ao instalador`);
   if (file.endsWith(".js")) new vm.Script(payload[file], { filename: file });
 }
-if (!payload["patcher.js"].includes("HarborChromecastBridge") || !payload["preload.js"].includes("TRANSPORTE_CHROMECAST_REQUEST")) {
+if (
+  !payload["patcher.js"].includes("HarborChromecastBridge") ||
+  !payload["preload.js"].includes("TRANSPORTE_CHROMECAST_REQUEST") ||
+  !payload["preload.js"].includes("TRANSPORTE_CHROMECAST_RELAY_REQUEST")
+) {
   throw new Error("ponte Chromecast ausente do instalador");
 }
 for (const forbidden of ["harbor-vlc", "harbor-mpv", "vlcBridge", "mpvBridge", "mpv.exe"]) {
