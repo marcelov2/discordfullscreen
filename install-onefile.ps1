@@ -39,7 +39,9 @@ foreach ($property in $payload.PSObject.Properties) {
     [IO.File]::WriteAllText($destination, [string]$property.Value, $utf8NoBom)
 }
 
-. (Join-Path $InstallRoot 'patch-common.ps1')
+$CommonPath = Join-Path $InstallRoot 'patch-common.ps1'
+$CommonSource = [IO.File]::ReadAllText($CommonPath)
+. ([scriptblock]::Create($CommonSource))
 $apps = @(Get-HarborDiscordApps -DiscordRoot $DiscordRoot)
 if ($apps.Count -eq 0) { throw "Nenhuma instalacao do Discord encontrada em $DiscordRoot" }
 
