@@ -3,6 +3,8 @@
 const electron = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { ipcMain } = electron;
+const { HarborChromecastBridge } = require("./cast-bridge.js");
 
 const PATCH_NAME = "Harbor Fullscreen Patch";
 const installRoot = path.join(
@@ -23,6 +25,13 @@ function resolveDiscordIconPath() {
 }
 
 const discordIconPath = resolveDiscordIconPath();
+const chromecastBridge = new HarborChromecastBridge();
+
+ipcMain.removeHandler("harbor-cast:request");
+ipcMain.handle("harbor-cast:request", async (_event, request) => {
+  const action = typeof request?.action === "string" ? request.action : "";
+  return chromecastBridge.command(action, request?.payload);
+});
 
 // Prevent the custom Electron runtime from appearing as "Electron" in the
 // Windows volume mixer and other shell surfaces.
@@ -142,7 +151,10 @@ electronModule.exports = {
   BrowserWindow: HarborPatchedBrowserWindow,
 };
 
-electron.app.on("before-quit", patchPendingDiscordUpdate);
+electron.app.on("before-quit", () => {
+  patchPendingDiscordUpdate();
+  void chromecastBridge.close();
+});
 const updateWatcher = setInterval(patchPendingDiscordUpdate, 30_000);
 updateWatcher.unref();
 

@@ -10,6 +10,8 @@ if (!match) throw new Error("payloadBase64 não encontrado");
 const payload = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
 payload["patcher.js"] = fs.readFileSync(path.join(root, "src", "patcher.js"), "utf8");
 payload["preload.js"] = fs.readFileSync(path.join(root, "src", "preload.js"), "utf8");
+payload["cast-bridge.js"] = fs.readFileSync(path.join(root, "src", "cast-bridge.js"), "utf8");
+payload["cast_channel.proto"] = fs.readFileSync(path.join(root, "src", "cast_channel.proto"), "utf8");
 payload["patch-common.ps1"] = fs.readFileSync(path.join(root, "src", "patch-common.ps1"), "utf8");
 payload["repair.ps1"] = fs.readFileSync(path.join(root, "src", "repair.ps1"), "utf8");
 payload["uninstall.ps1"] = fs.readFileSync(path.join(root, "src", "uninstall.ps1"), "utf8");
