@@ -61,7 +61,7 @@ document.addEventListener(CAST_RELAY_REQUEST, (event) => {
 const rendererPatch = String.raw`
 (() => {
   if (globalThis.__harborFullscreenPatch) return;
-  globalThis.__harborFullscreenPatch = { version: 4, patchedFrames: 0 };
+  globalThis.__harborFullscreenPatch = { version: 5, patchedFrames: 0 };
   const CAST_REQUEST = "TRANSPORTE_CHROMECAST_REQUEST";
   const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
   const CAST_RELAY_REQUEST = "TRANSPORTE_CHROMECAST_RELAY_REQUEST";
@@ -105,10 +105,14 @@ const rendererPatch = String.raw`
   });
   function grant(frame) {
     if (!(frame instanceof HTMLIFrameElement)) return;
-    const current = getAttribute.call(frame, "allow") || "";
-    if (!/(^|;)\s*fullscreen(?:\s|;|$)/i.test(current)) {
-      setAttribute.call(frame, "allow", current ? current.replace(/\s*;?\s*$/, "; ") + "fullscreen *" : "fullscreen *");
-    }
+    let current = getAttribute.call(frame, "allow") || "";
+    const appendPolicy = (feature) => {
+      if (new RegExp("(^|;)\\s*" + feature + "(?:\\s|;|$)", "i").test(current)) return;
+      current = current ? current.replace(/\s*;?\s*$/, "; ") + feature + " *" : feature + " *";
+    };
+    appendPolicy("fullscreen");
+    appendPolicy("display-capture");
+    setAttribute.call(frame, "allow", current);
     setAttribute.call(frame, "allowfullscreen", "true");
     frame.allowFullscreen = true;
     globalThis.__harborFullscreenPatch.patchedFrames += 1;
