@@ -27,6 +27,19 @@ const CAST_REQUEST = "TRANSPORTE_CHROMECAST_REQUEST";
 const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
 const CAST_RELAY_REQUEST = "TRANSPORTE_CHROMECAST_RELAY_REQUEST";
 const CAST_RELAY_RESPONSE = "TRANSPORTE_CHROMECAST_RELAY_RESPONSE";
+const SCREEN_CAPTURE_PREPARE_REQUEST = "TRANSPORTE_SCREEN_CAPTURE_PREPARE_REQUEST";
+let screenCapturePreparePromise = null;
+
+document.addEventListener(SCREEN_CAPTURE_PREPARE_REQUEST, () => {
+  if (screenCapturePreparePromise) return;
+  screenCapturePreparePromise = ipcRenderer.invoke("harbor-screen-capture:prepare").then(
+    (enabled) => log(`display-capture:prepare-result ${Boolean(enabled)}`),
+    (error) => {
+      screenCapturePreparePromise = null;
+      log("display-capture:prepare-failed", error);
+    },
+  );
+});
 
 function isAllowedCastOrigin(origin) {
   try {
@@ -66,6 +79,7 @@ const rendererPatch = String.raw`
   const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
   const CAST_RELAY_REQUEST = "TRANSPORTE_CHROMECAST_RELAY_REQUEST";
   const CAST_RELAY_RESPONSE = "TRANSPORTE_CHROMECAST_RELAY_RESPONSE";
+  const SCREEN_CAPTURE_PREPARE_REQUEST = "TRANSPORTE_SCREEN_CAPTURE_PREPARE_REQUEST";
   const castRequestSources = new Map();
   const setAttribute = Element.prototype.setAttribute;
   const getAttribute = Element.prototype.getAttribute;
@@ -116,6 +130,7 @@ const rendererPatch = String.raw`
     setAttribute.call(frame, "allowfullscreen", "true");
     frame.allowFullscreen = true;
     globalThis.__harborFullscreenPatch.patchedFrames += 1;
+    document.dispatchEvent(new CustomEvent(SCREEN_CAPTURE_PREPARE_REQUEST));
   }
   function inspect(frame, candidate) {
     if (!(frame instanceof HTMLIFrameElement)) return;

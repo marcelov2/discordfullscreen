@@ -5,7 +5,6 @@ $script:PatchMarker = '.harbor-fullscreen-patch.json'
 $script:Ac3RuntimeName = 'TRANSPORTE Electron AC3/E-AC3'
 $script:Ac3RuntimeMarker = '.harbor-electron-ac3.json'
 $script:Ac3RuntimeVersion = '37.6.0'
-$script:Ac3RuntimeMaxDiscordVersionExclusive = [version]'1.0.9262'
 
 function Get-HarborFileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -43,14 +42,6 @@ function Install-HarborAc3RuntimeIntoApp {
     $appName = Split-Path -Leaf $AppDir
     $markerPath = Join-Path $AppDir $script:Ac3RuntimeMarker
     $discordExe = Join-Path $AppDir 'Discord.exe'
-    try { $discordVersion = [version]($appName -replace '^app-', '') } catch { $discordVersion = [version]'0.0' }
-    if ($discordVersion -ge $script:Ac3RuntimeMaxDiscordVersionExclusive) {
-        if (Test-Path -LiteralPath $markerPath -PathType Leaf) {
-            Uninstall-HarborAc3RuntimeFromApp -AppDir $AppDir -BackupRoot $BackupRoot | Out-Null
-        }
-        Write-Warning "$script:Ac3RuntimeName $script:Ac3RuntimeVersion nao e compativel com Discord $discordVersion. O runtime oficial foi preservado para o Discord continuar abrindo."
-        return $false
-    }
     if ((Test-Path -LiteralPath $markerPath -PathType Leaf) -and
         (Test-Path -LiteralPath $discordExe -PathType Leaf)) {
         try {
