@@ -3,7 +3,7 @@
 const electron = require("electron");
 const fs = require("fs");
 const path = require("path");
-const { ipcMain } = electron;
+const { desktopCapturer, dialog, ipcMain } = electron;
 const { HarborChromecastBridge } = require("./cast-bridge.js");
 
 const PATCH_NAME = "Harbor Fullscreen Patch";
@@ -26,6 +26,57 @@ function resolveDiscordIconPath() {
 
 const discordIconPath = resolveDiscordIconPath();
 const chromecastBridge = new HarborChromecastBridge();
+const displayMediaSessions = new WeakSet();
+
+function isAllowedDisplayOrigin(origin) {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === "discordsays.com" || host.endsWith(".discordsays.com");
+  } catch {
+    return false;
+  }
+}
+
+function enableActivityDisplayCapture(session) {
+  if (!session || displayMediaSessions.has(session)) return;
+  displayMediaSessions.add(session);
+  session.setDisplayMediaRequestHandler(async (request, callback) => {
+    if (!isAllowedDisplayOrigin(request.securityOrigin)) {
+      callback({});
+      return;
+    }
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ["screen", "window"],
+        thumbnailSize: { width: 0, height: 0 },
+        fetchWindowIcons: true,
+      });
+      if (sources.length === 0) {
+        callback({});
+        return;
+      }
+      const choices = sources.slice(0, 18);
+      const result = await dialog.showMessageBox({
+        type: "question",
+        title: "Compartilhar tela no Harbor",
+        message: "O que você deseja compartilhar?",
+        detail: "Escolha uma tela ou janela. O conteúdo será enviado diretamente aos participantes da sala.",
+        buttons: [...choices.map((source) => source.name || "Tela"), "Cancelar"],
+        cancelId: choices.length,
+        noLink: true,
+      });
+      const source = choices[result.response];
+      callback(source ? {
+        video: source,
+        audio: request.audioRequested ? "loopback" : undefined,
+      } : {});
+    } catch (error) {
+      log("display-capture:failed", error);
+      callback({});
+    }
+  }, { useSystemPicker: true });
+  log("display-capture:handler-enabled");
+}
 
 ipcMain.removeHandler("harbor-cast:request");
 ipcMain.handle("harbor-cast:request", async (_event, request) => {
@@ -132,6 +183,7 @@ class HarborPatchedBrowserWindow extends OriginalBrowserWindow {
       options.webPreferences.sandbox = false;
     }
     super(options);
+    enableActivityDisplayCapture(this.webContents.session);
   }
 }
 

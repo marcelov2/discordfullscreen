@@ -61,7 +61,7 @@ document.addEventListener(CAST_RELAY_REQUEST, (event) => {
 const rendererPatch = String.raw`
 (() => {
   if (globalThis.__harborFullscreenPatch) return;
-  globalThis.__harborFullscreenPatch = { version: 5, patchedFrames: 0 };
+  globalThis.__harborFullscreenPatch = { version: 6, patchedFrames: 0 };
   const CAST_REQUEST = "TRANSPORTE_CHROMECAST_REQUEST";
   const CAST_RESPONSE = "TRANSPORTE_CHROMECAST_RESPONSE";
   const CAST_RELAY_REQUEST = "TRANSPORTE_CHROMECAST_RELAY_REQUEST";
@@ -153,7 +153,7 @@ const rendererPatch = String.raw`
     }
   }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
   scan(document);
-  console.info("[Harbor Fullscreen Patch] Fullscreen habilitado");
+  console.info("[Harbor Fullscreen Patch] Fullscreen e captura de tela habilitados (v6)");
 })();
 `;
 
