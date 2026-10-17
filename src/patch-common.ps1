@@ -2,9 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 $script:PatchName = 'TRANSPORTE Fullscreen Patch'
 $script:PatchMarker = '.harbor-fullscreen-patch.json'
-$script:Ac3RuntimeName = 'TRANSPORTE Electron AC3/E-AC3'
+$script:Ac3RuntimeName = 'TRANSPORTE Discord AC3/E-AC3 + RTC'
 $script:Ac3RuntimeMarker = '.harbor-electron-ac3.json'
-$script:Ac3RuntimeVersion = '37.6.0'
+$script:Ac3RuntimeVersion = '42.11.11'
 
 function Get-HarborFileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -17,6 +17,20 @@ function Test-HarborFileSha256 {
         [Parameter(Mandatory = $true)][string]$ExpectedSha256
     )
     return (Get-HarborFileSha256 -Path $Path) -eq $ExpectedSha256.Trim().ToUpperInvariant()
+}
+
+function Test-HarborDiscordExecutableIdentity {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    try {
+        $versionInfo = (Get-Item -LiteralPath $Path).VersionInfo
+        return $versionInfo.ProductName -eq 'Discord' -and
+            $versionInfo.FileDescription -eq 'Discord' -and
+            $versionInfo.InternalName -eq 'Discord.exe' -and
+            $versionInfo.OriginalFilename -eq 'Discord.exe'
+    } catch {
+        return $false
+    }
 }
 
 function Install-HarborAc3RuntimeIntoApp {
@@ -48,10 +62,10 @@ function Install-HarborAc3RuntimeIntoApp {
             $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
             $ffmpegPath = Join-Path $AppDir 'ffmpeg.dll'
             if ($marker.archiveSha256 -eq $ExpectedSha256.Trim().ToUpperInvariant() -and
-                $marker.executableIdentity -eq 'Discord' -and
                 $marker.electronSha256 -eq (Get-HarborFileSha256 -Path $discordExe) -and
                 (Test-Path -LiteralPath $ffmpegPath -PathType Leaf) -and
-                $marker.ffmpegSha256 -eq (Get-HarborFileSha256 -Path $ffmpegPath)) {
+                $marker.ffmpegSha256 -eq (Get-HarborFileSha256 -Path $ffmpegPath) -and
+                (Test-HarborDiscordExecutableIdentity -Path $discordExe)) {
                 Write-Host "$script:Ac3RuntimeName ja esta instalado em $appName."
                 return $true
             }
@@ -83,6 +97,8 @@ function Install-HarborAc3RuntimeIntoApp {
             @{ Source = 'chrome_100_percent.pak'; Destination = 'chrome_100_percent.pak' },
             @{ Source = 'chrome_200_percent.pak'; Destination = 'chrome_200_percent.pak' },
             @{ Source = 'd3dcompiler_47.dll'; Destination = 'd3dcompiler_47.dll' },
+            @{ Source = 'dxcompiler.dll'; Destination = 'dxcompiler.dll' },
+            @{ Source = 'dxil.dll'; Destination = 'dxil.dll' },
             @{ Source = 'icudtl.dat'; Destination = 'icudtl.dat' },
             @{ Source = 'libEGL.dll'; Destination = 'libEGL.dll' },
             @{ Source = 'libGLESv2.dll'; Destination = 'libGLESv2.dll' },
@@ -149,6 +165,9 @@ function Install-HarborAc3RuntimeIntoApp {
         & $RceditPath @brandingArguments
         if ($LASTEXITCODE -ne 0) {
             throw "$script:Ac3RuntimeName: nao foi possivel aplicar a identidade Discord ao executavel"
+        }
+        if (-not (Test-HarborDiscordExecutableIdentity -Path $discordExe)) {
+            throw "$script:Ac3RuntimeName: o executavel instalado ainda possui identidade Electron"
         }
 
         $installedMarker = [ordered]@{

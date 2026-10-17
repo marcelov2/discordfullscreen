@@ -108,11 +108,15 @@ ipcMain.handle("harbor-cast:request", async (_event, request) => {
   return chromecastBridge.command(action, request?.payload);
 });
 
-// Prevent the custom Electron runtime from appearing as "Electron" in the
-// Windows volume mixer and other shell surfaces.
-electron.app.setName("Discord");
-if (process.platform === "win32") {
-  electron.app.setAppUserModelId("com.squirrel.Discord.Discord");
+// Keep the custom runtime grouped and identified as Discord in the taskbar,
+// notifications, volume mixer and other Windows shell surfaces.
+try {
+  electron.app.setName("Discord");
+  if (process.platform === "win32") {
+    electron.app.setAppUserModelId("com.squirrel.Discord.Discord");
+  }
+} catch (error) {
+  log("discord-identity:failed", error);
 }
 
 function versionParts(name) {

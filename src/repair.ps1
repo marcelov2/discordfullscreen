@@ -14,7 +14,7 @@ if (-not (Test-Path -LiteralPath $patcher -PathType Leaf)) { exit 0 }
 
 try {
     $markerPath = Join-Path $apps[0].FullName $script:Ac3RuntimeMarker
-    $archivePath = Join-Path $InstallRoot 'discord-electron-37.6.0-ac3-win-x64.zip'
+    $archivePath = Join-Path $InstallRoot 'discord-electron-42.11.11-ac3-rtc-win-x64.zip'
     if ((Test-Path -LiteralPath $markerPath -PathType Leaf) -and
         (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
         $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
