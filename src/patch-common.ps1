@@ -93,6 +93,7 @@ function Install-HarborAc3RuntimeIntoApp {
 
         $fileMap = @(
             @{ Source = 'electron.exe'; Destination = 'Discord.exe' },
+            @{ Source = 'app.ico'; Destination = 'app.ico' },
             @{ Source = 'ffmpeg.dll'; Destination = 'ffmpeg.dll' },
             @{ Source = 'chrome_100_percent.pak'; Destination = 'chrome_100_percent.pak' },
             @{ Source = 'chrome_200_percent.pak'; Destination = 'chrome_200_percent.pak' },

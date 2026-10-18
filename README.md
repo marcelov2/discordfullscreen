@@ -2,7 +2,7 @@
 
 Instalador independente para habilitar tela cheia real, áudio AC3/E-AC3 e compartilhamento RTC na Activity do TRANSPORTE no Discord Desktop para Windows.
 
-O script baixa a build personalizada baseada no Electron 42.11.11, valida o SHA-256 antes de instalar, guarda os binários originais e configura o reparo automático.
+O script baixa a build personalizada baseada no Electron 42.11.11, valida o SHA-256 antes de instalar, guarda os binários originais e configura o reparo automático. O pacote já traz o nome e o ícone Discord no executável, além do `app.ico` usado na instalação.
 
 ## Instalação
 
