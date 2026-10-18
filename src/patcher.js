@@ -584,40 +584,34 @@ const activityCaptureShim = String.raw`
         console.error("[harbor-capture] direct getDisplayMedia failed", details);
       } catch {}
       reportCapture("modern-direct-failed", details);
-      return originalGetUserMedia(constraints).then((stream) => {
-        reportCapture("legacy-fallback-resolved", { tracks: stream.getVideoTracks().length });
-        return stream;
-      }, (legacyError) => {
-        reportCapture("legacy-fallback-failed", {
-          name: legacyError?.name || "Error",
-          message: legacyError?.message || String(legacyError),
-        });
-        const token = "capture:" + Date.now() + ":" + Math.random().toString(36).slice(2);
-        const streamPromise = new Promise((resolve, reject) => {
-          pendingCaptures.set(token, { resolve, reject });
-        });
-        setTimeout(() => {
-          const pending = pendingCaptures.get(token);
-          if (!pending) return;
-          pendingCaptures.delete(token);
-          pending.reject(new Error("A transmissão local não recebeu vídeo da janela principal."));
-        }, 15000);
-        reportCapture("privileged-bridge-attempt", { sourceId });
-        void requestBridge("capture", { sourceId, token, options }).catch((bridgeError) => {
-          const pending = pendingCaptures.get(token);
-          if (!pending) return;
-          pendingCaptures.delete(token);
-          reportCapture("privileged-bridge-failed", {
-            name: bridgeError?.name || "Error",
-            message: bridgeError?.message || String(bridgeError),
-          });
-          pending.reject(bridgeError);
-        });
-        return streamPromise.then((stream) => {
-          reportCapture("privileged-bridge-resolved", { tracks: stream.getVideoTracks().length });
-          return stream;
-        });
+      // In current Chromium the legacy desktop getUserMedia request can stay
+      // pending indefinitely. The privileged Discord-frame bridge works for
+      // the same source and must be started without waiting for that request.
+      const token = "capture:" + Date.now() + ":" + Math.random().toString(36).slice(2);
+      const streamPromise = new Promise((resolve, reject) => {
+        pendingCaptures.set(token, { resolve, reject });
       });
+      const timeout = setTimeout(() => {
+        const pending = pendingCaptures.get(token);
+        if (!pending) return;
+        pendingCaptures.delete(token);
+        pending.reject(new Error("A transmissão local não recebeu vídeo da janela principal."));
+      }, 15000);
+      reportCapture("privileged-bridge-attempt", { sourceId });
+      void requestBridge("capture", { sourceId, token, options }).catch((bridgeError) => {
+        const pending = pendingCaptures.get(token);
+        if (!pending) return;
+        pendingCaptures.delete(token);
+        reportCapture("privileged-bridge-failed", {
+          name: bridgeError?.name || "Error",
+          message: bridgeError?.message || String(bridgeError),
+        });
+        pending.reject(bridgeError);
+      });
+      return streamPromise.then((stream) => {
+        reportCapture("privileged-bridge-resolved", { tracks: stream.getVideoTracks().length });
+        return stream;
+      }).finally(() => clearTimeout(timeout));
     });
   };
   globalThis.__harborDesktopCaptureShimInstalled = true;
