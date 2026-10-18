@@ -19,6 +19,16 @@ O arquivo copiado recebe um nome associado à versão instalada (`discord-app-*.
 
 Depois, entre na Activity do TRANSPORTE e use o botão de tela cheia do player.
 
+Na transmissão de tela do Harbor, escolher **Tela inteira** envia o áudio geral do PC.
+Escolher uma **janela** usa o capturador de áudio por processo do Windows:
+por exemplo, Opera não envia o som do Chrome. Janelas diferentes do mesmo
+aplicativo podem compartilhar o mesmo processo e, nesse caso, seu áudio é
+capturado em conjunto. Se a captura do processo não iniciar, a transmissão da
+janela falha em vez de enviar por engano o áudio do sistema inteiro.
+
+O capturador nativo é compilado de `native/process-audio/` com o SDK do Windows;
+o binário incluído no instalador é validado por SHA-256 antes de ser gravado.
+
 > O Krisp oficial não funciona em executáveis sem a assinatura digital da Discord. Nas configurações de voz, use a supressão de ruído **Padrão**.
 
 Uma atualização do Discord pode criar outra pasta `app-*`. O reparo automático reaplica o runtime, a identidade Discord e o fullscreen na versão mais recente.

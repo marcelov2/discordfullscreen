@@ -1,6 +1,7 @@
 "use strict";
 
 const electron = require("electron");
+const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { desktopCapturer, dialog, ipcMain } = electron;
@@ -49,6 +50,86 @@ const chromecastBridge = new HarborChromecastBridge();
 const displayMediaSessions = new WeakSet();
 const selectedDisplaySources = new WeakMap();
 const displayPermissionSessions = new WeakSet();
+const processAudioCaptures = new Map();
+const processAudioExecutable = path.join(installRoot, "harbor-process-audio.exe");
+
+function stopProcessAudio(token) {
+  const capture = processAudioCaptures.get(token);
+  if (!capture) return;
+  processAudioCaptures.delete(token);
+  clearInterval(capture.timer);
+  capture.child.kill();
+}
+
+async function startProcessAudio(token, sourceId, frame) {
+  const windowId = /^window:(\d+):\d+$/.exec(sourceId)?.[1];
+  if (!windowId) throw new Error("A fonte selecionada não é uma janela do Windows.");
+  if (!fs.existsSync(processAudioExecutable)) {
+    throw new Error("O capturador de áudio por aplicativo não está instalado.");
+  }
+  const child = spawn(processAudioExecutable, [windowId], {
+    cwd: installRoot,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const capture = { child, frame, pending: Buffer.alloc(0), sending: false, timer: null };
+  processAudioCaptures.set(token, capture);
+  try {
+    await new Promise((resolve, reject) => {
+      let status = "";
+      const timeout = setTimeout(() => reject(new Error("O áudio do aplicativo não iniciou em 10 segundos.")), 10000);
+      const done = (error) => {
+        clearTimeout(timeout);
+        child.stderr.off("data", onStatus);
+        child.off("error", onError);
+        child.off("exit", onExit);
+        if (error) reject(error); else resolve();
+      };
+      const onStatus = (chunk) => {
+        status += chunk.toString("utf8");
+        if (!status.includes("\n")) return;
+        const line = status.slice(0, status.indexOf("\n")).trim();
+        done(line.startsWith("READY ") ? null : new Error(`Falha ao capturar áudio: ${line}`));
+      };
+      const onError = (error) => done(error);
+      const onExit = (code) => done(new Error(`Capturador encerrado antes de iniciar (${code}).`));
+      child.stderr.on("data", onStatus);
+      child.once("error", onError);
+      child.once("exit", onExit);
+    });
+    child.stdout.on("data", (chunk) => {
+      capture.pending = Buffer.concat([capture.pending, chunk]);
+      // Keep at most 250 ms of complete stereo PCM frames.
+      const excess = Math.floor((capture.pending.length - 48000) / 4) * 4;
+      if (excess > 0) capture.pending = capture.pending.subarray(excess);
+    });
+    child.on("exit", (code) => {
+      if (processAudioCaptures.get(token) === capture) {
+        log(`process-audio:unexpected-exit token=${token} code=${code}`);
+        stopProcessAudio(token);
+        void frame.executeJavaScript(
+          `globalThis.__harborMainCaptureBridge?.stop(${JSON.stringify(token)})`,
+        ).catch(() => {});
+      }
+    });
+    capture.timer = setInterval(() => {
+      if (capture.sending || capture.pending.length < 4 || processAudioCaptures.get(token) !== capture) return;
+      const completeBytes = capture.pending.length - capture.pending.length % 4;
+      const payload = capture.pending.subarray(0, completeBytes).toString("base64");
+      capture.pending = capture.pending.subarray(completeBytes);
+      capture.sending = true;
+      void frame.executeJavaScript(
+        `globalThis.__harborMainCaptureBridge?.pushAudio(${JSON.stringify(token)}, ${JSON.stringify(payload)})`,
+      ).catch((error) => log("process-audio:renderer-delivery-failed", error)).finally(() => {
+        capture.sending = false;
+      });
+    }, 50);
+    log(`process-audio:ready source=${sourceId}`);
+  } catch (error) {
+    stopProcessAudio(token);
+    throw error;
+  }
+}
 
 // Display capture is denied before Electron's permission handler when called
 // from the Activity iframe. Capture in Discord's top-level page instead, then
@@ -75,28 +156,86 @@ const mainCaptureBridge = String.raw`
     captures.delete(token);
     capture.stream.getTracks().forEach((track) => track.stop());
     capture.peer.close();
+    capture.audio?.node.disconnect();
+    if (capture.audio?.context) void capture.audio.context.close().catch(() => {});
     return true;
   };
+  const makeProcessAudio = () => {
+    const context = new AudioContext({ sampleRate: 48000, latencyHint: "interactive" });
+    const destination = context.createMediaStreamDestination();
+    const node = context.createScriptProcessor(2048, 0, 2);
+    const muted = context.createGain();
+    muted.gain.value = 0;
+    const queue = [];
+    let frameOffset = 0;
+    let queuedFrames = 0;
+    node.onaudioprocess = (event) => {
+      const left = event.outputBuffer.getChannelData(0);
+      const right = event.outputBuffer.getChannelData(1);
+      for (let i = 0; i < left.length; i++) {
+        const head = queue[0];
+        if (!head) break;
+        left[i] = head[frameOffset * 2] / 32768;
+        right[i] = head[frameOffset * 2 + 1] / 32768;
+        frameOffset++;
+        queuedFrames--;
+        if (frameOffset * 2 >= head.length) { queue.shift(); frameOffset = 0; }
+      }
+    };
+    node.connect(destination);
+    node.connect(muted);
+    muted.connect(context.destination);
+    return {
+      context, node, stream: destination.stream,
+      push(base64) {
+        const raw = atob(base64);
+        const samples = new Int16Array(raw.length / 2);
+        for (let i = 0; i < samples.length; i++) {
+          samples[i] = (raw.charCodeAt(i * 2) | (raw.charCodeAt(i * 2 + 1) << 8)) << 16 >> 16;
+        }
+        queue.push(samples);
+        queuedFrames += samples.length / 2;
+        while (queuedFrames > 12000 && queue.length > 1) {
+          queuedFrames -= queue.shift().length / 2;
+          frameOffset = 0;
+        }
+      },
+    };
+  };
   globalThis.__harborMainCaptureBridge = {
-    async offer(token, options) {
+    async offer(token, options, processAudio) {
       if (captures.has(token)) throw new Error("Captura já iniciada.");
       const stream = await navigator.mediaDevices.getDisplayMedia(options);
       if (!stream.getVideoTracks().length) {
         stream.getTracks().forEach((track) => track.stop());
         throw new Error("A fonte selecionada não produziu vídeo.");
       }
-      const peer = new RTCPeerConnection({ iceServers: [] });
-      captures.set(token, { stream, peer });
       try {
-        stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+        const audio = processAudio ? makeProcessAudio() : null;
+        const outgoing = audio
+          ? new MediaStream([...stream.getVideoTracks(), ...audio.stream.getAudioTracks()])
+          : stream;
+        const peer = new RTCPeerConnection({ iceServers: [] });
+        captures.set(token, { stream, peer, audio });
+        if (audio) {
+          await audio.context.resume();
+          if (audio.context.state !== "running") throw new Error("O áudio da janela não pôde iniciar.");
+        }
+        outgoing.getTracks().forEach((track) => peer.addTrack(track, outgoing));
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
         await waitForIce(peer);
         return peer.localDescription.toJSON();
       } catch (error) {
-        stop(token);
+        if (!stop(token)) stream.getTracks().forEach((track) => track.stop());
         throw error;
       }
+    },
+    pushAudio(token, base64) {
+      const audio = captures.get(token)?.audio;
+      if (!audio) return false;
+      audio.push(base64);
+      return true;
     },
     async answer(token, description) {
       const capture = captures.get(token);
@@ -212,7 +351,7 @@ function enableActivityDisplayCapture(session) {
         log(`display-capture:selected ${selectedSource.id} ${selectedSource.name}`);
         callback({
           video: selectedSource,
-          audio: request.audioRequested ? "loopback" : undefined,
+          audio: selectedSource.id.startsWith("screen:") && request.audioRequested ? "loopback" : undefined,
         });
         return;
       }
@@ -233,7 +372,7 @@ function enableActivityDisplayCapture(session) {
       const source = choices[result.response];
       callback(source ? {
         video: source,
-        audio: request.audioRequested ? "loopback" : undefined,
+        audio: source.id.startsWith("screen:") && request.audioRequested ? "loopback" : undefined,
       } : {});
     } catch (error) {
       log("display-capture:request-failed", error);
@@ -383,6 +522,28 @@ const activityCaptureShim = String.raw`
     if (height) video.height = { ideal: height };
     if (frameRate) video.frameRate = { ideal: frameRate, max: frameRate };
     const options = { video, audio: Boolean(constraints?.audio) };
+    // A window must never fall back to Electron's system-wide loopback.
+    // The privileged bridge attaches Windows process-loopback audio instead.
+    const windowSource = sourceId.startsWith("window:");
+    if (windowSource) {
+      const token = "capture:" + Date.now() + ":" + Math.random().toString(36).slice(2);
+      const streamPromise = new Promise((resolve, reject) => {
+        pendingCaptures.set(token, { resolve, reject });
+      });
+      const timeout = setTimeout(() => {
+        const pending = pendingCaptures.get(token);
+        if (!pending) return;
+        pendingCaptures.delete(token);
+        pending.reject(new Error("A janela selecionada não iniciou a captura de áudio e vídeo."));
+      }, 30000);
+      void requestBridge("capture", { sourceId, token, options }).catch((error) => {
+        const pending = pendingCaptures.get(token);
+        if (!pending) return;
+        pendingCaptures.delete(token);
+        pending.reject(error);
+      });
+      return streamPromise.finally(() => clearTimeout(timeout));
+    }
 
     // Start modern display capture synchronously in the picker click. The
     // selection message travels in parallel; the main-process handler already
@@ -557,6 +718,7 @@ ipcMain.handle("harbor-screen-capture:request", async (event, request) => {
   if (action === "stop") {
     const token = typeof request?.payload?.token === "string" ? request.payload.token : "";
     if (!token || !isDiscordOrigin(event.sender.getURL())) return false;
+    stopProcessAudio(token);
     return event.sender.mainFrame.executeJavaScript(
       `Boolean(globalThis.__harborMainCaptureBridge?.stop(${JSON.stringify(token)}))`,
     );
@@ -585,20 +747,23 @@ ipcMain.handle("harbor-screen-capture:request", async (event, request) => {
       types: ["window", "screen"],
       thumbnailSize: { width: 0, height: 0 },
     });
-    if (!sources.some((source) => source.id === sourceId)) {
+    const selectedSource = sources.find((source) => source.id === sourceId);
+    if (!selectedSource) {
       throw new Error("A janela selecionada não está mais disponível.");
     }
 
     selectedDisplaySources.set(event.sender.session, sourceId);
     const mainFrame = event.sender.mainFrame;
+    const processAudio = selectedSource.id.startsWith("window:");
     try {
       await mainFrame.executeJavaScript(mainCaptureBridge, true);
+      if (processAudio) await startProcessAudio(token, sourceId, mainFrame);
       const captureOptions = {
         video: options.video || true,
-        audio: true,
+        audio: !processAudio,
       };
       const offer = await mainFrame.executeJavaScript(
-        `globalThis.__harborMainCaptureBridge.offer(${JSON.stringify(token)}, ${JSON.stringify(captureOptions)})`,
+        `globalThis.__harborMainCaptureBridge.offer(${JSON.stringify(token)}, ${JSON.stringify(captureOptions)}, ${processAudio})`,
         true,
       );
       const answer = await activityFrame.executeJavaScript(
@@ -612,6 +777,7 @@ ipcMain.handle("harbor-screen-capture:request", async (event, request) => {
       log(`display-capture:bridged ${sourceId}`);
       return true;
     } catch (error) {
+      stopProcessAudio(token);
       selectedDisplaySources.delete(event.sender.session);
       void mainFrame.executeJavaScript(
         `globalThis.__harborMainCaptureBridge?.stop(${JSON.stringify(token)})`,

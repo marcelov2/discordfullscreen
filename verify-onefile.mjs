@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -8,11 +9,23 @@ const installer = fs.readFileSync(path.join(root, "install-onefile.ps1"), "utf8"
 const match = installer.match(/\$payloadBase64 = '([^']+)'/u);
 if (!match) throw new Error("payloadBase64 não encontrado");
 const payload = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
+const processAudio = fs.readFileSync(path.join(root, "native", "process-audio", "harbor-process-audio.exe"));
+if (payload["harbor-process-audio.exe"] !== processAudio.toString("base64")) {
+  throw new Error("capturador por aplicativo não corresponde ao instalador");
+}
+if (payload["harbor-process-audio.sha256"] !== crypto.createHash("sha256").update(processAudio).digest("hex").toUpperCase()) {
+  throw new Error("hash do capturador por aplicativo não corresponde ao instalador");
+}
 
 for (const file of ["patcher.js", "preload.js", "cast-bridge.js", "cast_channel.proto", "patch-common.ps1", "repair.ps1", "uninstall.ps1"]) {
   const source = fs.readFileSync(path.join(root, "src", file), "utf8");
   if (payload[file] !== source) throw new Error(`${file} não corresponde ao instalador`);
   if (file.endsWith(".js")) new vm.Script(payload[file], { filename: file });
+}
+for (const name of ["mainCaptureBridge", "activityCaptureShim"]) {
+  const embedded = payload["patcher.js"].split(`const ${name} = String.raw\``)[1]?.split("`;")[0];
+  if (!embedded) throw new Error(`${name} ausente do patcher`);
+  new vm.Script(embedded, { filename: name });
 }
 if (
   !payload["patcher.js"].includes("HarborChromecastBridge") ||

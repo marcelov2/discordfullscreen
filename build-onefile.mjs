@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -15,6 +16,9 @@ payload["cast_channel.proto"] = fs.readFileSync(path.join(root, "src", "cast_cha
 payload["patch-common.ps1"] = fs.readFileSync(path.join(root, "src", "patch-common.ps1"), "utf8");
 payload["repair.ps1"] = fs.readFileSync(path.join(root, "src", "repair.ps1"), "utf8");
 payload["uninstall.ps1"] = fs.readFileSync(path.join(root, "src", "uninstall.ps1"), "utf8");
+const processAudio = fs.readFileSync(path.join(root, "native", "process-audio", "harbor-process-audio.exe"));
+payload["harbor-process-audio.exe"] = processAudio.toString("base64");
+payload["harbor-process-audio.sha256"] = crypto.createHash("sha256").update(processAudio).digest("hex").toUpperCase();
 delete payload["activity-patch.js"];
 const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
 fs.writeFileSync(installerPath, installer.replace(match[0], `$payloadBase64 = '${encoded}'`), "utf8");
