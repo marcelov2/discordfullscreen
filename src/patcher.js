@@ -816,11 +816,17 @@ function isNewer(left, right) {
 function writeLoader(resourcesDir) {
   const appAsar = path.join(resourcesDir, "app.asar");
   const originalAsar = path.join(resourcesDir, "_app.asar");
-  if (!fs.existsSync(appAsar) || fs.statSync(appAsar).isDirectory() || fs.existsSync(originalAsar)) {
+  const vencordAsar = path.join(resourcesDir, "app.asar.vencord");
+  if (!fs.existsSync(appAsar) || fs.statSync(appAsar).isDirectory() || fs.existsSync(vencordAsar)) {
     return false;
   }
+  const hasOriginalAsar = fs.existsSync(originalAsar);
+  const isVencordLoader = hasOriginalAsar && fs.statSync(appAsar).size < 4096
+    && /Vencord[\\/]+dist[\\/]+patcher\.js/i.test(fs.readFileSync(appAsar, "utf8"));
+  if (hasOriginalAsar && !isVencordLoader) return false;
+  const backupAsar = isVencordLoader ? vencordAsar : originalAsar;
   try {
-    fs.renameSync(appAsar, originalAsar);
+    fs.renameSync(appAsar, backupAsar);
     fs.mkdirSync(appAsar);
     fs.writeFileSync(
       path.join(appAsar, "package.json"),
@@ -834,14 +840,15 @@ function writeLoader(resourcesDir) {
       path.join(appAsar, ".harbor-fullscreen-patch.json"),
       JSON.stringify({ name: PATCH_NAME, version: 2 }, null, 2),
     );
+    if (isVencordLoader) fs.writeFileSync(path.join(appAsar, ".harbor-vencord-chain.json"), "{}");
     return true;
   } catch {
     try {
       if (fs.existsSync(appAsar) && fs.statSync(appAsar).isDirectory()) {
         fs.rmSync(appAsar, { recursive: true, force: true });
       }
-      if (!fs.existsSync(appAsar) && fs.existsSync(originalAsar)) {
-        fs.renameSync(originalAsar, appAsar);
+      if (!fs.existsSync(appAsar) && fs.existsSync(backupAsar)) {
+        fs.renameSync(backupAsar, appAsar);
       }
     } catch {}
     return false;
@@ -869,6 +876,21 @@ const resourcesDir = path.dirname(loaderDir);
 const originalAsar = path.join(resourcesDir, "_app.asar");
 if (!fs.existsSync(originalAsar)) {
   throw new Error(`${PATCH_NAME}: original Discord archive not found at ${originalAsar}`);
+}
+
+const vencordChainMarker = path.join(loaderDir, ".harbor-vencord-chain.json");
+let vencordEntry = null;
+if (fs.existsSync(vencordChainMarker)) {
+  const savedLoader = path.join(resourcesDir, "app.asar.vencord");
+  if (!fs.existsSync(savedLoader)) throw new Error(`${PATCH_NAME}: Vencord loader backup not found`);
+  const match = fs.readFileSync(savedLoader, "utf8").match(/require\(("(?:\\.|[^"\\])*")\)/);
+  if (!match) throw new Error(`${PATCH_NAME}: Vencord loader entry not found`);
+  vencordEntry = JSON.parse(match[1]);
+  if (!path.isAbsolute(vencordEntry) || !/[\\/]Vencord[\\/]dist[\\/]patcher\.js$/i.test(vencordEntry)
+      || !fs.existsSync(vencordEntry)) {
+    throw new Error(`${PATCH_NAME}: Vencord patcher unavailable`);
+  }
+  log("vencord:chain-enabled");
 }
 
 const originalPackage = require(path.join(originalAsar, "package.json"));
@@ -926,7 +948,7 @@ updateWatcher.unref();
 electron.app.setAppPath(originalAsar);
 require.main.filename = originalEntry;
 try {
-  require(originalEntry);
+  require(vencordEntry || originalEntry);
 } finally {
   process.env.HARBOR_FULLSCREEN_LOADER = originalMainFile;
 }

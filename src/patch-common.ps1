@@ -242,6 +242,19 @@ function Test-HarborPatchOwner {
     return Test-Path -LiteralPath (Join-Path $LoaderDir $script:PatchMarker) -PathType Leaf
 }
 
+function Test-HarborVencordLoader {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    try {
+        $file = Get-Item -LiteralPath $Path
+        if ($file.Length -gt 4096) { return $false }
+        $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($Path))
+        return $text -match 'Vencord[\\/]+dist[\\/]+patcher\.js'
+    } catch {
+        return $false
+    }
+}
+
 function Install-HarborPatchIntoApp {
     param(
         [Parameter(Mandatory = $true)][string]$AppDir,
@@ -251,6 +264,7 @@ function Install-HarborPatchIntoApp {
     $resources = Join-Path $AppDir 'resources'
     $appAsar = Join-Path $resources 'app.asar'
     $originalAsar = Join-Path $resources '_app.asar'
+    $vencordAsar = Join-Path $resources 'app.asar.vencord'
 
     if (-not (Test-Path -LiteralPath $appAsar)) {
         Write-Warning "$script:PatchName: app.asar não encontrado em $AppDir"
@@ -266,26 +280,32 @@ function Install-HarborPatchIntoApp {
         return $false
     }
 
-    if (Test-Path -LiteralPath $originalAsar) {
-        Write-Warning "Backup _app.asar já existe em $($AppDir | Split-Path -Leaf); instalação ignorada por segurança."
+    $hasOriginalAsar = Test-Path -LiteralPath $originalAsar -PathType Leaf
+    $isVencordLoader = $hasOriginalAsar -and (Test-HarborVencordLoader -Path $appAsar)
+    if ((Test-Path -LiteralPath $vencordAsar) -or ($hasOriginalAsar -and -not $isVencordLoader)) {
+        Write-Warning "Inicializador existente desconhecido em $($AppDir | Split-Path -Leaf); instalação ignorada por segurança."
         return $false
     }
+    $backupAsar = if ($isVencordLoader) { $vencordAsar } else { $originalAsar }
 
     try {
-        Move-Item -LiteralPath $appAsar -Destination $originalAsar
+        Move-Item -LiteralPath $appAsar -Destination $backupAsar
         New-Item -ItemType Directory -Path $appAsar | Out-Null
         Set-Content -LiteralPath (Join-Path $appAsar 'package.json') -Encoding UTF8 -NoNewline -Value '{"name":"discord","main":"index.js"}'
         $loader = "// $script:PatchName`r`nrequire($($PatcherPath | ConvertTo-Json -Compress));`r`n"
         Set-Content -LiteralPath (Join-Path $appAsar 'index.js') -Encoding UTF8 -NoNewline -Value $loader
         Set-Content -LiteralPath (Join-Path $appAsar $script:PatchMarker) -Encoding UTF8 -Value '{"name":"TRANSPORTE Fullscreen Patch","version":1}'
+        if ($isVencordLoader) {
+            Set-Content -LiteralPath (Join-Path $appAsar '.harbor-vencord-chain.json') -Encoding UTF8 -Value '{}'
+        }
         Write-Host "$script:PatchName instalado em $($AppDir | Split-Path -Leaf)."
         return $true
     } catch {
         if (Test-Path -LiteralPath $appAsar -PathType Container) {
             Remove-Item -LiteralPath $appAsar -Recurse -Force
         }
-        if ((-not (Test-Path -LiteralPath $appAsar)) -and (Test-Path -LiteralPath $originalAsar -PathType Leaf)) {
-            Move-Item -LiteralPath $originalAsar -Destination $appAsar
+        if ((-not (Test-Path -LiteralPath $appAsar)) -and (Test-Path -LiteralPath $backupAsar -PathType Leaf)) {
+            Move-Item -LiteralPath $backupAsar -Destination $appAsar
         }
         throw
     }
@@ -297,14 +317,17 @@ function Uninstall-HarborPatchFromApp {
     $resources = Join-Path $AppDir 'resources'
     $appAsar = Join-Path $resources 'app.asar'
     $originalAsar = Join-Path $resources '_app.asar'
+    $vencordAsar = Join-Path $resources 'app.asar.vencord'
     if (-not (Test-Path -LiteralPath $appAsar -PathType Container)) { return $false }
     if (-not (Test-HarborPatchOwner -LoaderDir $appAsar)) { return $false }
-    if (-not (Test-Path -LiteralPath $originalAsar -PathType Leaf)) {
-        throw "O backup original não foi encontrado em $originalAsar. Nada foi removido."
+    $isVencordChain = Test-Path -LiteralPath (Join-Path $appAsar '.harbor-vencord-chain.json') -PathType Leaf
+    $backupAsar = if ($isVencordChain) { $vencordAsar } else { $originalAsar }
+    if (-not (Test-Path -LiteralPath $backupAsar -PathType Leaf)) {
+        throw "O backup do inicializador não foi encontrado em $backupAsar. Nada foi removido."
     }
 
     Remove-Item -LiteralPath $appAsar -Recurse -Force
-    Move-Item -LiteralPath $originalAsar -Destination $appAsar
+    Move-Item -LiteralPath $backupAsar -Destination $appAsar
     Write-Host "$script:PatchName removido de $($AppDir | Split-Path -Leaf)."
     return $true
 }

@@ -14,6 +14,8 @@ iwr -useb "https://raw.githubusercontent.com/marcelov2/discordfullscreen/main/in
 
 O instalador fecha o Discord, baixa aproximadamente 150 MB, instala fullscreen, AC3/E-AC3 e RTC e abre o `Discord.exe` novamente. Não é necessário baixar o ZIP manualmente.
 
+Se o Vencord já estiver instalado, o instalador preserva seu inicializador e carrega os dois patches em sequência. O Vencord continua ativo; ao desinstalar o TRANSPORTE, seu inicializador é restaurado.
+
 O `app.ico` da versão instalada do Discord é preservado na janela, na barra de tarefas, nos atalhos e no mixer de volume, mesmo usando o runtime personalizado do Electron. O instalador também aplica o nome interno `Discord`, configura o AppUserModelID correto e renova o cache de ícones do Windows. Se o ícone original não existir, o instalador usa o executável oficial como fallback.
 O arquivo copiado recebe um nome associado à versão instalada (`discord-app-*.ico`) para impedir que o cache de ícones do Windows continue mostrando uma imagem antiga.
 
@@ -31,7 +33,7 @@ o binário incluído no instalador é validado por SHA-256 antes de ser gravado.
 
 > O Krisp oficial não funciona em executáveis sem a assinatura digital da Discord. Nas configurações de voz, use a supressão de ruído **Padrão**.
 
-Uma atualização do Discord pode criar outra pasta `app-*`. O reparo automático reaplica o runtime, a identidade Discord e o fullscreen na versão mais recente.
+Uma atualização do Discord pode criar outra pasta `app-*`. O reparo automático reaplica o runtime, a identidade Discord e o fullscreen na versão mais recente, inclusive quando a nova versão já estiver preparada pelo Vencord.
 
 ## Desinstalação
 
