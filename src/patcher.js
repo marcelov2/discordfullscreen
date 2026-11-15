@@ -23,6 +23,19 @@ function log(message, error) {
 
 log("patcher:start");
 
+// Expose the original audio tracks of a directly played MKV to Harbor's
+// HTMLMediaElement player. This only enables Blink's track-selection API;
+// it does not alter codecs or route movie bytes through the Harbor server.
+try {
+  const current = electron.app.commandLine.getSwitchValue("enable-blink-features");
+  const features = new Set(current.split(",").map((value) => value.trim()).filter(Boolean));
+  features.add("AudioVideoTracks");
+  electron.app.commandLine.appendSwitch("enable-blink-features", [...features].join(","));
+  log("audio-tracks:blink-enabled");
+} catch (error) {
+  log("audio-tracks:blink-enable-failed", error);
+}
+
 // The Harbor picker provides a desktopCapturer source id. Chromium 148 keeps
 // the legacy chromeMediaSource path disabled unless the embedding desktop app
 // opts into user-media screen capture before the app becomes ready.

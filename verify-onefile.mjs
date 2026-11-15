@@ -45,6 +45,34 @@ if (!payload["patcher.js"].includes("discordIconPath") || !payload["patcher.js"]
 if (!payload["patcher.js"].includes("discord-icon-current.txt")) {
   throw new Error("cachebuster do icone do Discord ausente do patcher");
 }
+if (!payload["patcher.js"].includes('features.add("AudioVideoTracks")') ||
+    !payload["patcher.js"].includes('appendSwitch("enable-blink-features"')) {
+  throw new Error("selecao nativa de faixas de audio ausente do patcher");
+}
+const audioFeatureBlock = payload["patcher.js"].match(
+  /\/\/ Expose the original audio tracks[\s\S]*?(?=\/\/ The Harbor picker)/u,
+)?.[0];
+if (!audioFeatureBlock) throw new Error("bloco de selecao de audio ausente");
+for (const initialFeatures of ["", "ExistingFeature"]) {
+  let enabled = "";
+  const electron = {
+    app: {
+      commandLine: {
+        getSwitchValue: () => initialFeatures,
+        appendSwitch: (name, value) => {
+          if (name !== "enable-blink-features") throw new Error("switch inesperado");
+          enabled = value;
+        },
+      },
+    },
+  };
+  vm.runInNewContext(audioFeatureBlock, { electron, log: () => {}, Set });
+  const features = enabled.split(",");
+  if (!features.includes("AudioVideoTracks") ||
+      (initialFeatures && !features.includes(initialFeatures))) {
+    throw new Error("selecao de audio apagou outras opcoes do Blink");
+  }
+}
 if (
   !installer.includes("Export-DiscordOriginalIcon")
   || !installer.includes("Set-DiscordShortcutIcons")
